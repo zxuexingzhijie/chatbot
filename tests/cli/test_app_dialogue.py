@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 from tavern.dialogue.context import DialogueContext, DialogueResponse, DialogueSummary
 from tavern.world.models import Character, CharacterRole, Location, Event
 from tavern.world.state import WorldState, StateManager
+from tavern.cli.app import GameApp
 
 
 @pytest.fixture
@@ -70,7 +71,6 @@ def mock_summary():
 
 class TestGameAppDialogueFlow:
     def test_apply_dialogue_end_updates_trust(self, mock_state, mock_summary):
-        from tavern.cli.app import GameApp
         state_manager = StateManager(initial_state=mock_state)
         app = GameApp.__new__(GameApp)
         app._state_manager = state_manager
@@ -82,7 +82,6 @@ class TestGameAppDialogueFlow:
         assert new_trust == 13  # 10 + 3
 
     def test_apply_dialogue_end_writes_summary_event(self, mock_state, mock_summary):
-        from tavern.cli.app import GameApp
         state_manager = StateManager(initial_state=mock_state)
         app = GameApp.__new__(GameApp)
         app._state_manager = state_manager
@@ -102,7 +101,6 @@ class TestGameAppDialogueFlow:
     async def test_process_dialogue_input_bye_ends_dialogue(
         self, mock_state, mock_dialogue_ctx, mock_summary
     ):
-        from tavern.cli.app import GameApp
         state_manager = StateManager(initial_state=mock_state)
         mock_dialogue_manager = MagicMock()
         mock_dialogue_manager.end = AsyncMock(return_value=mock_summary)
@@ -121,7 +119,6 @@ class TestGameAppDialogueFlow:
     async def test_process_dialogue_input_normal_calls_respond(
         self, mock_state, mock_dialogue_ctx, mock_dialogue_response
     ):
-        from tavern.cli.app import GameApp
         state_manager = StateManager(initial_state=mock_state)
         mock_dialogue_manager = MagicMock()
         mock_dialogue_manager.respond = AsyncMock(

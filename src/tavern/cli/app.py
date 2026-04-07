@@ -228,6 +228,8 @@ class GameApp:
                     target=summary.npc_id,
                 ),
             )
+        else:
+            logger.warning("_apply_dialogue_end: NPC %s not found in state, skipping trust update", summary.npc_id)
 
         event = Event(
             id=f"dialogue_{summary.npc_id}_{uuid.uuid4().hex[:8]}",
