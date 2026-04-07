@@ -75,6 +75,7 @@ class TestGameAppDialogueFlow:
         app = GameApp.__new__(GameApp)
         app._state_manager = state_manager
         app._renderer = MagicMock()
+        app._memory = MagicMock()
 
         app._apply_dialogue_end(mock_summary)
 
@@ -86,6 +87,7 @@ class TestGameAppDialogueFlow:
         app = GameApp.__new__(GameApp)
         app._state_manager = state_manager
         app._renderer = MagicMock()
+        app._memory = MagicMock()
 
         app._apply_dialogue_end(mock_summary)
 
@@ -110,6 +112,7 @@ class TestGameAppDialogueFlow:
         app._dialogue_manager = mock_dialogue_manager
         app._renderer = MagicMock()
         app._dialogue_ctx = mock_dialogue_ctx
+        app._memory = MagicMock()
 
         await app._process_dialogue_input("bye", mock_dialogue_ctx)
 
@@ -130,11 +133,15 @@ class TestGameAppDialogueFlow:
         app._dialogue_manager = mock_dialogue_manager
         app._renderer = MagicMock()
         app._dialogue_ctx = mock_dialogue_ctx
+        mock_memory = MagicMock()
+        mock_memory_ctx = MagicMock()
+        mock_memory.build_context.return_value = mock_memory_ctx
+        app._memory = mock_memory
 
         await app._process_dialogue_input("你好", mock_dialogue_ctx)
 
         mock_dialogue_manager.respond.assert_called_once_with(
-            mock_dialogue_ctx, "你好", mock_state
+            mock_dialogue_ctx, "你好", mock_state, mock_memory_ctx
         )
 
 
@@ -165,6 +172,9 @@ class TestNarrativeIntegration:
         app._dialogue_ctx = None
         app._narrator = Narrator(llm_service=mock_llm_service)
         app._show_intent = False
+        mock_memory = MagicMock()
+        mock_memory.build_context.return_value = MagicMock()
+        app._memory = mock_memory
 
         render_result_calls = []
         render_stream_calls = []
@@ -220,6 +230,9 @@ class TestNarrativeIntegration:
         app._show_intent = False
         app._rules = RulesEngine()
         app._parser = IntentParser(llm_service=MagicMock())
+        mock_memory = MagicMock()
+        mock_memory.build_context.return_value = MagicMock()
+        app._memory = mock_memory
 
         render_result_calls = []
         render_stream_calls = []

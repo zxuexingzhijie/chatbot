@@ -19,6 +19,7 @@ from tavern.llm.openai_llm import OpenAIAdapter  # noqa: F401 — triggers regis
 from tavern.llm.service import LLMService
 from tavern.parser.intent import IntentParser
 from tavern.world.loader import load_scenario
+from tavern.world.memory import MemorySystem
 from tavern.world.models import ActionRequest, ActionResult, Event
 from tavern.world.state import StateManager, StateDiff, WorldState
 
@@ -65,6 +66,11 @@ class GameApp:
         self._parser = IntentParser(llm_service=llm_service)
         self._dialogue_manager = DialogueManager(llm_service=llm_service)
         self._narrator = Narrator(llm_service=llm_service)
+        skills_dir = scenario_path / "skills"
+        self._memory = MemorySystem(
+            state=initial_state,
+            skills_dir=skills_dir if skills_dir.exists() else None,
+        )
         self._dialogue_ctx: DialogueContext | None = None
 
         debug_config = config.get("debug", {})
@@ -166,14 +172,20 @@ class GameApp:
 
         if diff is not None:
             self._state_manager.commit(diff, result)
+            self._memory.apply_diff(diff, self.state)
 
         if result.success and request.action in (
             ActionType.TALK, ActionType.PERSUADE
         ) and result.target:
             try:
+                memory_ctx = self._memory.build_context(
+                    actor=result.target or self.state.player_id,
+                    state=self.state,
+                )
                 ctx, opening_response = await self._dialogue_manager.start(
                     self.state, result.target,
                     is_persuade=(request.action == ActionType.PERSUADE),
+                    memory_ctx=memory_ctx,
                 )
                 self._dialogue_ctx = ctx
                 self._renderer.render_dialogue_start(ctx, opening_response)
@@ -184,8 +196,12 @@ class GameApp:
                 return
 
         if result.success and not self._dialogue_manager.is_active:
+            memory_ctx = self._memory.build_context(
+                actor=result.target or self.state.player_id,
+                state=self.state,
+            )
             await self._renderer.render_stream(
-                self._narrator.stream_narrative(result, self.state)
+                self._narrator.stream_narrative(result, self.state, memory_ctx)
             )
         else:
             self._renderer.render_result(result)
@@ -203,8 +219,12 @@ class GameApp:
             self._renderer.render_status_bar(self.state)
             return
 
+        memory_ctx = self._memory.build_context(
+            actor=ctx.npc_id,
+            state=self.state,
+        )
         new_ctx, response = await self._dialogue_manager.respond(
-            ctx, user_input, self.state
+            ctx, user_input, self.state, memory_ctx
         )
         self._dialogue_ctx = new_ctx
         self._renderer.render_dialogue(response)
@@ -225,6 +245,9 @@ class GameApp:
             new_stats = {**dict(npc.stats), "trust": new_trust}
             trust_diff = StateDiff(
                 updated_characters={summary.npc_id: {"stats": new_stats}},
+                relationship_changes=(
+                    {"src": summary.npc_id, "tgt": state.player_id, "delta": summary.total_trust_delta},
+                ),
                 turn_increment=0,
             )
             self._state_manager.commit(
@@ -236,6 +259,7 @@ class GameApp:
                     target=summary.npc_id,
                 ),
             )
+            self._memory.apply_diff(trust_diff, self.state)
         else:
             logger.warning("_apply_dialogue_end: NPC %s not found in state, skipping trust update", summary.npc_id)
 
@@ -257,3 +281,4 @@ class GameApp:
                 target=summary.npc_id,
             ),
         )
+        self._memory.apply_diff(event_diff, self.state)
