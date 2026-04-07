@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from tavern.dialogue.context import (
     DialogueContext,
     DialogueResponse,
@@ -9,6 +11,9 @@ from tavern.dialogue.context import (
 from tavern.dialogue.prompts import build_dialogue_prompt, build_summary_prompt, resolve_tone
 from tavern.llm.service import LLMService
 from tavern.world.state import WorldState
+
+if TYPE_CHECKING:
+    from tavern.world.memory import MemoryContext
 
 MAX_TURNS = 20
 
@@ -23,7 +28,8 @@ class DialogueManager:
         return self._active is not None
 
     async def start(
-        self, state: WorldState, npc_id: str, is_persuade: bool = False
+        self, state: WorldState, npc_id: str, is_persuade: bool = False,
+        memory_ctx: MemoryContext | None = None,
     ) -> tuple[DialogueContext, DialogueResponse]:
         player = state.characters[state.player_id]
         location = state.locations[player.location_id]
@@ -54,7 +60,10 @@ class DialogueManager:
             turn_entered=state.turn,
         )
 
-        system_prompt = build_dialogue_prompt(ctx, location.name, history_summaries, is_persuade=is_persuade)
+        system_prompt = build_dialogue_prompt(
+            ctx, location.name, history_summaries, is_persuade=is_persuade,
+            active_skills_text=memory_ctx.active_skills_text if memory_ctx else "",
+        )
         response = await self._llm.generate_dialogue(system_prompt, messages=[])
 
         opening_msg = Message(
@@ -79,7 +88,8 @@ class DialogueManager:
         return ctx, response
 
     async def respond(
-        self, ctx: DialogueContext, player_input: str, state: WorldState
+        self, ctx: DialogueContext, player_input: str, state: WorldState,
+        memory_ctx: MemoryContext | None = None,
     ) -> tuple[DialogueContext, DialogueResponse]:
         npc_turn_count = sum(1 for m in ctx.messages if m.role == "npc")
         if npc_turn_count >= MAX_TURNS:
@@ -100,7 +110,10 @@ class DialogueManager:
             if e.type == "dialogue_summary" and e.actor == ctx.npc_id
         )
 
-        system_prompt = build_dialogue_prompt(ctx, location.name, history_summaries)
+        system_prompt = build_dialogue_prompt(
+            ctx, location.name, history_summaries,
+            active_skills_text=memory_ctx.active_skills_text if memory_ctx else "",
+        )
 
         llm_messages = [
             {

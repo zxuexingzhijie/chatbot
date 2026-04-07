@@ -1,8 +1,9 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from tavern.dialogue.context import DialogueContext, DialogueResponse, DialogueSummary, Message
 from tavern.dialogue.manager import DialogueManager
+from tavern.world.memory import MemoryContext
 from tavern.world.models import Character, CharacterRole, Location
 from tavern.world.state import WorldState
 
@@ -212,3 +213,53 @@ class TestDialogueManagerEnd:
         )
         summary = await manager.end(ctx_with_messages)
         assert summary.total_trust_delta == 5  # 2 + 0 + 3
+
+
+class TestDialogueManagerMemoryCtx:
+    @pytest.mark.asyncio
+    async def test_start_passes_active_skills_text_to_prompt(self, mock_llm_service, sample_state):
+        memory_ctx = MemoryContext(
+            recent_events="",
+            relationship_summary="",
+            active_skills_text="persuasion+2",
+        )
+        manager = DialogueManager(llm_service=mock_llm_service)
+        with patch("tavern.dialogue.manager.build_dialogue_prompt") as mock_build:
+            mock_build.return_value = "prompt"
+            await manager.start(sample_state, "traveler", memory_ctx=memory_ctx)
+            _, kwargs = mock_build.call_args
+            assert kwargs.get("active_skills_text") == "persuasion+2"
+
+    @pytest.mark.asyncio
+    async def test_start_passes_empty_string_when_no_memory_ctx(self, mock_llm_service, sample_state):
+        manager = DialogueManager(llm_service=mock_llm_service)
+        with patch("tavern.dialogue.manager.build_dialogue_prompt") as mock_build:
+            mock_build.return_value = "prompt"
+            await manager.start(sample_state, "traveler", memory_ctx=None)
+            _, kwargs = mock_build.call_args
+            assert kwargs.get("active_skills_text") == ""
+
+    @pytest.mark.asyncio
+    async def test_respond_passes_active_skills_text_to_prompt(self, mock_llm_service, sample_state):
+        memory_ctx = MemoryContext(
+            recent_events="",
+            relationship_summary="",
+            active_skills_text="stealth+3",
+        )
+        manager = DialogueManager(llm_service=mock_llm_service)
+        ctx, _ = await manager.start(sample_state, "traveler")
+        with patch("tavern.dialogue.manager.build_dialogue_prompt") as mock_build:
+            mock_build.return_value = "prompt"
+            await manager.respond(ctx, "你好", sample_state, memory_ctx=memory_ctx)
+            _, kwargs = mock_build.call_args
+            assert kwargs.get("active_skills_text") == "stealth+3"
+
+    @pytest.mark.asyncio
+    async def test_respond_passes_empty_string_when_no_memory_ctx(self, mock_llm_service, sample_state):
+        manager = DialogueManager(llm_service=mock_llm_service)
+        ctx, _ = await manager.start(sample_state, "traveler")
+        with patch("tavern.dialogue.manager.build_dialogue_prompt") as mock_build:
+            mock_build.return_value = "prompt"
+            await manager.respond(ctx, "你好", sample_state, memory_ctx=None)
+            _, kwargs = mock_build.call_args
+            assert kwargs.get("active_skills_text") == ""
