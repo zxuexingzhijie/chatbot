@@ -327,10 +327,27 @@ new_ctx, response = await self._dialogue_manager.respond(
 )
 ```
 
-**每次 `state_manager.commit()` 后**：
+**`_apply_dialogue_end`** trust StateDiff 中需加入 `relationship_changes`：
+```python
+# 对话结束时，同步 total_trust_delta 到 RelationshipGraph
+trust_diff = StateDiff(
+    stat_changes={npc_id: {"trust": total_trust_delta}},
+    relationship_changes=[
+        RelationshipDelta(src=npc_id, tgt=state.player_id, delta=total_trust_delta)
+    ],
+)
+```
+
+**每次 `state_manager.commit()` 后**（共 4 处，`relationship_changes` 为空时为 no-op）：
 ```python
 self._memory.apply_diff(diff, self.state)
 ```
+
+四个 commit 调用点：
+1. `_handle_free_input` 成功行动后 → `relationship_changes=[]`，no-op
+2. `_apply_dialogue_end` trust commit → 含 `RelationshipDelta`，**实际同步**
+3. `_apply_state_change` 其他状态变更 → `relationship_changes=[]`，no-op
+4. 其他 commit 点（如 look/search）→ `relationship_changes=[]`，no-op
 
 ---
 
