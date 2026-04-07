@@ -34,6 +34,8 @@ class Relationship:
 
 
 class EventTimeline:
+    __slots__ = ("_events",)
+
     def __init__(self, events: tuple[Event, ...]) -> None:
         self._events = events
 
@@ -43,19 +45,19 @@ class EventTimeline:
     def query(
         self,
         actor: str | None = None,
-        type: str | None = None,
+        event_type: str | None = None,
         after_turn: int | None = None,
     ) -> list[Event]:
         result = list(self._events)
         if actor is not None:
             result = [e for e in result if e.actor == actor]
-        if type is not None:
-            result = [e for e in result if e.type == type]
+        if event_type is not None:
+            result = [e for e in result if e.type == event_type]
         if after_turn is not None:
             result = [e for e in result if e.turn > after_turn]
         return result
 
-    def summarize(self, max_tokens: int = 200) -> str:
+    def summarize(self) -> str:
         if not self._events:
             return "（尚无历史事件）"
         recent = list(self._events[-5:])

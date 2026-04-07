@@ -71,7 +71,7 @@ class TestEventTimeline:
             Event(id="e2", turn=2, type="talk", actor="player", description="对话", consequences=()),
         )
         timeline = EventTimeline(events)
-        result = timeline.query(type="talk")
+        result = timeline.query(event_type="talk")
         assert len(result) == 1
         assert result[0].id == "e2"
 
