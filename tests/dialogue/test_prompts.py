@@ -143,3 +143,31 @@ class TestBuildSummaryPrompt:
         prompt = build_summary_prompt("旅行者", messages)
         assert "北方有什么" in prompt
         assert "北方有宝藏" in prompt
+
+
+class TestBuildDialoguePromptWithSkills:
+    def _make_ctx(self):
+        return DialogueContext(
+            npc_id="bartender",
+            npc_name="格里姆",
+            npc_traits=("沉默",),
+            trust=0,
+            tone="neutral",
+            messages=(),
+            location_id="bar_area",
+            turn_entered=0,
+        )
+
+    def test_active_skills_text_empty_string_no_change(self):
+        ctx = self._make_ctx()
+        prompt = build_dialogue_prompt(ctx, "吧台区", history_summaries=(), active_skills_text="")
+        assert "【NPC知识与行为】" not in prompt
+
+    def test_active_skills_text_appended_to_prompt(self):
+        ctx = self._make_ctx()
+        skills_text = "格里姆知道地下室藏有秘密\ntone: 神秘"
+        prompt = build_dialogue_prompt(
+            ctx, "吧台区", history_summaries=(), active_skills_text=skills_text
+        )
+        assert "格里姆知道地下室藏有秘密" in prompt
+        assert "【NPC知识与行为】" in prompt
