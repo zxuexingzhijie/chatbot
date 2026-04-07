@@ -1,5 +1,6 @@
 import pytest
 from tavern.narrator.prompts import NarrativeContext, build_narrative_prompt
+from tavern.world.memory import MemoryContext
 
 class TestNarrativeContext:
     def test_creation(self):
@@ -141,7 +142,6 @@ class TestBuildNarrativePromptWithMemory:
         assert messages[0]["role"] == "system"
 
     def test_memory_ctx_recent_events_appended_to_system(self):
-        from tavern.world.memory import MemoryContext
         ctx = self._make_ctx()
         memory_ctx = MemoryContext(
             recent_events="[已省略2条]\n旅行者谈起北方",
@@ -152,7 +152,6 @@ class TestBuildNarrativePromptWithMemory:
         assert "旅行者谈起北方" in messages[0]["content"]
 
     def test_memory_ctx_relationship_appended_to_system(self):
-        from tavern.world.memory import MemoryContext
         ctx = self._make_ctx()
         memory_ctx = MemoryContext(
             recent_events="（尚无历史事件）",

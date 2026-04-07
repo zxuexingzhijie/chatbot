@@ -53,10 +53,8 @@ def build_narrative_prompt(
     )
 
     if memory_ctx is not None:
-        if memory_ctx.recent_events:
-            system_content += f"\n\n【近期历史】\n{memory_ctx.recent_events}"
-        if memory_ctx.relationship_summary:
-            system_content += f"\n\n【关系状态】\n{memory_ctx.relationship_summary}"
+        system_content += f"\n\n【近期历史】\n{memory_ctx.recent_events}"
+        system_content += f"\n\n【关系状态】\n{memory_ctx.relationship_summary}"
 
     user_parts = [ctx.action_message]
     if ctx.target:
