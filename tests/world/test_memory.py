@@ -167,3 +167,12 @@ class TestRelationshipGraph:
         from tavern.world.memory import RelationshipGraph
         g = RelationshipGraph(snapshot=None)
         assert g.get("x", "y").value == 0
+
+    def test_corrupt_snapshot_logs_warning_and_initializes_empty(self, caplog):
+        from tavern.world.memory import RelationshipGraph
+        import logging
+        with caplog.at_level(logging.WARNING, logger="tavern.world.memory"):
+            g = RelationshipGraph(snapshot={"this_is": "not_a_valid_graph"})
+        assert g.get("x", "y").value == 0
+        assert any("corrupt" in r.message.lower() or "snapshot" in r.message.lower()
+                   for r in caplog.records)
