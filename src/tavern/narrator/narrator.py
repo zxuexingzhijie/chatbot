@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, AsyncIterator
+from typing import TYPE_CHECKING, AsyncGenerator
 
 from tavern.narrator.prompts import NarrativeContext, build_narrative_prompt
 from tavern.world.models import ActionResult
@@ -16,12 +16,12 @@ class Narrator:
 
     async def stream_narrative(
         self, result: ActionResult, state: WorldState
-    ) -> AsyncIterator[str]:
-        ctx = self._build_context(result, state)
-        messages = build_narrative_prompt(ctx)
-        system_prompt = messages[0]["content"]
-        action_message = messages[1]["content"]
+    ) -> AsyncGenerator[str, None]:
         try:
+            ctx = self._build_context(result, state)
+            messages = build_narrative_prompt(ctx)
+            system_prompt = messages[0]["content"]
+            action_message = messages[1]["content"]
             async for chunk in self._llm.stream_narrative(system_prompt, action_message):
                 yield chunk
         except Exception:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -8,6 +10,8 @@ from tavern.dialogue.context import DialogueContext, DialogueResponse, DialogueS
 from tavern.engine.actions import ActionType
 from tavern.world.models import ActionResult
 from tavern.world.state import WorldState
+
+logger = logging.getLogger(__name__)
 
 
 class Renderer:
@@ -45,8 +49,8 @@ class Renderer:
         try:
             async for chunk in stream:
                 self.console.print(chunk, end="", highlight=False)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("render_stream interrupted: %s", exc)
         self.console.print()
 
     def render_inventory(self, state: WorldState) -> None:
