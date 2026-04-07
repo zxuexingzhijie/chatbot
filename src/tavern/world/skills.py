@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 import yaml
@@ -35,7 +36,7 @@ class Skill:
     priority: str  # "high" | "normal" | "low"
     activation: tuple[ActivationCondition, ...]
     facts: tuple[str, ...]
-    behavior: dict[str, str]
+    behavior: MappingProxyType
 
 
 class ConditionEvaluator:
@@ -66,8 +67,20 @@ class ConditionEvaluator:
         rel = relationships.get(cond.source, cond.target)
         v = rel.value
         t = cond.value
-        ops = {"==": v == t, "!=": v != t, ">": v > t, "<": v < t, ">=": v >= t, "<=": v <= t}
-        return ops.get(cond.operator, False)
+        op = cond.operator
+        if op == "==":
+            return v == t
+        if op == "!=":
+            return v != t
+        if op == ">":
+            return v > t
+        if op == "<":
+            return v < t
+        if op == ">=":
+            return v >= t
+        if op == "<=":
+            return v <= t
+        return False
 
     @staticmethod
     def _eval_event(cond: ActivationCondition, timeline: EventTimeline) -> bool:
@@ -117,7 +130,7 @@ class SkillManager:
                     priority=raw.get("priority", "normal"),
                     activation=conditions,
                     facts=tuple(raw.get("facts") or []),
-                    behavior=dict(raw.get("behavior") or {}),
+                    behavior=MappingProxyType(dict(raw.get("behavior") or {})),
                 )
                 self._skills[skill.id] = skill
             except Exception as exc:
@@ -152,7 +165,7 @@ class SkillManager:
                 f"{k}: {v}" for k, v in skill.behavior.items()
             ]
             chunk = "\n".join(lines)
-            if total + len(chunk) > max_chars and parts:
+            if total > 0 and total + len(chunk) > max_chars:
                 break
             parts.append(chunk)
             total += len(chunk)

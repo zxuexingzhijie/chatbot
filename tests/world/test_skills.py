@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import textwrap
 from pathlib import Path
+from types import MappingProxyType
 
 import pytest
 
@@ -267,10 +268,11 @@ class TestInjectToPrompt:
                 priority="low",
                 activation=(),
                 facts=(f"事实{i}" * 50,),
-                behavior={"tone": "neutral"},
+                behavior=MappingProxyType({"tone": "neutral"}),
             )
             for i in range(20)
         ]
         manager = SkillManager()
         text = manager.inject_to_prompt(skills, max_chars=100)
-        assert len(text) <= 200
+        assert "事实0" in text
+        assert "事实1" not in text
