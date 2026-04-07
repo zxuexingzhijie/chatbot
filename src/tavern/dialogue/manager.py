@@ -23,7 +23,7 @@ class DialogueManager:
         return self._active is not None
 
     async def start(
-        self, state: WorldState, npc_id: str
+        self, state: WorldState, npc_id: str, is_persuade: bool = False
     ) -> tuple[DialogueContext, DialogueResponse]:
         player = state.characters[state.player_id]
         location = state.locations[player.location_id]
@@ -54,7 +54,7 @@ class DialogueManager:
             turn_entered=state.turn,
         )
 
-        system_prompt = build_dialogue_prompt(ctx, location.name, history_summaries)
+        system_prompt = build_dialogue_prompt(ctx, location.name, history_summaries, is_persuade=is_persuade)
         response = await self._llm.generate_dialogue(system_prompt, messages=[])
 
         opening_msg = Message(
@@ -81,7 +81,8 @@ class DialogueManager:
     async def respond(
         self, ctx: DialogueContext, player_input: str, state: WorldState
     ) -> tuple[DialogueContext, DialogueResponse]:
-        if len(ctx.messages) >= MAX_TURNS:
+        npc_turn_count = sum(1 for m in ctx.messages if m.role == "npc")
+        if npc_turn_count >= MAX_TURNS:
             response = DialogueResponse(
                 text="我觉得我们已经聊了很多了，请让我休息一下。",
                 trust_delta=0,

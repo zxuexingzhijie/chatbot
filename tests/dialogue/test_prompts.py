@@ -105,6 +105,22 @@ class TestBuildDialoguePrompt:
         prompt = build_dialogue_prompt(ctx, "某地", history_summaries=())
         assert "15" in prompt
 
+    def test_persuade_context_in_prompt(self):
+        ctx = DialogueContext(
+            npc_id="npc1", npc_name="NPC", npc_traits=(), trust=0,
+            tone="neutral", messages=(), location_id="loc1", turn_entered=0,
+        )
+        prompt = build_dialogue_prompt(ctx, "某地", history_summaries=(), is_persuade=True)
+        assert "说服" in prompt
+
+    def test_no_persuade_context_by_default(self):
+        ctx = DialogueContext(
+            npc_id="npc1", npc_name="NPC", npc_traits=(), trust=0,
+            tone="neutral", messages=(), location_id="loc1", turn_entered=0,
+        )
+        prompt = build_dialogue_prompt(ctx, "某地", history_summaries=())
+        assert "玩家正在尝试说服" not in prompt
+
 
 class TestBuildSummaryPrompt:
     def test_contains_npc_name(self):

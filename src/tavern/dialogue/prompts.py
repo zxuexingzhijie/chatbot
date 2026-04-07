@@ -30,6 +30,7 @@ def build_dialogue_prompt(
     ctx: DialogueContext,
     location_name: str,
     history_summaries: tuple[str, ...],
+    is_persuade: bool = False,
 ) -> str:
     traits_desc = "、".join(ctx.npc_traits) if ctx.npc_traits else "普通人"
     tone_instruction = TONE_TEMPLATES[ctx.tone]
@@ -44,6 +45,10 @@ def build_dialogue_prompt(
     if history_summaries:
         history_lines = "\n".join(f"- {s}" for s in history_summaries)
         history_section = f"\n\n【历史对话记录】\n{history_lines}"
+
+    persuade_note = ""
+    if is_persuade:
+        persuade_note = "\n\n【特殊情境】\n玩家正在尝试说服你，请根据信任关系决定是否被说服。"
 
     return (
         f"你扮演角色：{ctx.npc_name}\n"
@@ -60,7 +65,7 @@ def build_dialogue_prompt(
         "玩家友好、提供有用信息时为正；无理、骚扰时为负；普通对话为0\n"
         '- "mood": 你当前情绪，如 "平静"、"警惕"、"开心"、"不耐烦"\n'
         '- "wants_to_end": 布尔值，当你想结束对话时为 true（玩家反复骚扰、超出话题范围等）\n\n'
-        "保持角色一致性，不要脱离角色。"
+        f"保持角色一致性，不要脱离角色。{persuade_note}"
     )
 
 

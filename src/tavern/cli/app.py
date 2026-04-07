@@ -170,7 +170,8 @@ class GameApp:
         ) and result.target:
             try:
                 ctx, opening_response = await self._dialogue_manager.start(
-                    self.state, result.target
+                    self.state, result.target,
+                    is_persuade=(request.action == ActionType.PERSUADE),
                 )
                 self._dialogue_ctx = ctx
                 self._renderer.render_dialogue_start(ctx, opening_response)

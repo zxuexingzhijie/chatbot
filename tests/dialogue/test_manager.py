@@ -157,7 +157,7 @@ class TestDialogueManagerRespond:
         manager = DialogueManager(llm_service=mock_llm_service)
         ctx, _ = await manager.start(sample_state, "traveler")
         messages = tuple(
-            Message(role="player", content=f"msg{i}", trust_delta=0, turn=i)
+            Message(role="npc", content=f"reply{i}", trust_delta=0, turn=i)
             for i in range(20)
         )
         ctx_full = DialogueContext(
