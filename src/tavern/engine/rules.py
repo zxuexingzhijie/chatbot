@@ -1,0 +1,339 @@
+from __future__ import annotations
+
+import uuid
+
+from tavern.engine.actions import ActionType
+from tavern.world.models import ActionRequest, ActionResult, Event
+from tavern.world.state import StateDiff, WorldState
+
+
+class RulesEngine:
+    def validate(
+        self, request: ActionRequest, state: WorldState
+    ) -> tuple[ActionResult, StateDiff | None]:
+        handler = _ACTION_HANDLERS.get(request.action, _handle_custom)
+        return handler(request, state)
+
+
+def _get_player(state: WorldState):
+    return state.characters[state.player_id]
+
+
+def _get_player_location(state: WorldState):
+    player = _get_player(state)
+    return state.locations[player.location_id]
+
+
+def _handle_move(request: ActionRequest, state: WorldState):
+    location = _get_player_location(state)
+    player = _get_player(state)
+    direction = request.target
+
+    if direction not in location.exits:
+        available = ", ".join(location.exits.keys())
+        return (
+            ActionResult(
+                success=False,
+                action=ActionType.MOVE,
+                message=f"这里没有通往「{direction}」的出口。可用方向: {available}",
+                target=direction,
+            ),
+            None,
+        )
+
+    exit_ = location.exits[direction]
+
+    if exit_.locked:
+        if exit_.key_item and exit_.key_item in player.inventory:
+            return _unlock_and_move(state, location, exit_, direction)
+        target_loc = state.locations[exit_.target]
+        return (
+            ActionResult(
+                success=False,
+                action=ActionType.MOVE,
+                message=f"通往{target_loc.name}的门被锁住了。{exit_.description}",
+                target=direction,
+            ),
+            None,
+        )
+
+    target_loc = state.locations[exit_.target]
+    diff = StateDiff(
+        updated_characters={state.player_id: {"location_id": exit_.target}}
+    )
+    return (
+        ActionResult(
+            success=True,
+            action=ActionType.MOVE,
+            message=f"你走向{target_loc.name}。\n\n{target_loc.description}",
+            target=exit_.target,
+        ),
+        diff,
+    )
+
+
+def _unlock_and_move(state, location, exit_, direction):
+    new_exits = dict(location.exits)
+    new_exits[direction] = exit_.model_copy(update={"locked": False})
+    target_loc = state.locations[exit_.target]
+
+    key_name = state.items[exit_.key_item].name if exit_.key_item in state.items else exit_.key_item
+    event = Event(
+        id=f"evt_{uuid.uuid4().hex[:8]}",
+        turn=state.turn,
+        type="unlock",
+        actor=state.player_id,
+        description=f"用{key_name}打开了通往{target_loc.name}的门",
+    )
+
+    diff = StateDiff(
+        updated_characters={state.player_id: {"location_id": exit_.target}},
+        updated_locations={location.id: {"exits": new_exits}},
+        new_events=(event,),
+    )
+    return (
+        ActionResult(
+            success=True,
+            action=ActionType.MOVE,
+            message=f"你用钥匙打开了门，走进了{target_loc.name}。\n\n{target_loc.description}",
+            target=exit_.target,
+        ),
+        diff,
+    )
+
+
+def _handle_look(request: ActionRequest, state: WorldState):
+    location = _get_player_location(state)
+
+    if request.target is None:
+        return _look_at_location(state, location)
+
+    return _look_at_target(request.target, state, location)
+
+
+def _look_at_location(state, location):
+    parts = [f"【{location.name}】", location.description]
+
+    if location.npcs:
+        npc_names = [
+            state.characters[npc_id].name
+            for npc_id in location.npcs
+            if npc_id in state.characters
+        ]
+        if npc_names:
+            parts.append(f"在场人物: {', '.join(npc_names)}")
+
+    if location.items:
+        item_names = [
+            state.items[item_id].name
+            for item_id in location.items
+            if item_id in state.items
+        ]
+        if item_names:
+            parts.append(f"可见物品: {', '.join(item_names)}")
+
+    if location.exits:
+        exit_descs = [f"  {d}: {e.description}" for d, e in location.exits.items()]
+        parts.append("出口:\n" + "\n".join(exit_descs))
+
+    return (
+        ActionResult(
+            success=True, action=ActionType.LOOK, message="\n".join(parts)
+        ),
+        None,
+    )
+
+
+def _look_at_target(target_id, state, location):
+    if target_id in location.items and target_id in state.items:
+        item = state.items[target_id]
+        return (
+            ActionResult(
+                success=True,
+                action=ActionType.LOOK,
+                message=f"【{item.name}】\n{item.description}",
+                target=target_id,
+            ),
+            None,
+        )
+
+    player = _get_player(state)
+    if target_id in player.inventory and target_id in state.items:
+        item = state.items[target_id]
+        return (
+            ActionResult(
+                success=True,
+                action=ActionType.LOOK,
+                message=f"【{item.name}】（背包中）\n{item.description}",
+                target=target_id,
+            ),
+            None,
+        )
+
+    if target_id in location.npcs and target_id in state.characters:
+        npc = state.characters[target_id]
+        traits_desc = "、".join(npc.traits) if npc.traits else "难以捉摸"
+        return (
+            ActionResult(
+                success=True,
+                action=ActionType.LOOK,
+                message=f"【{npc.name}】\n{traits_desc}",
+                target=target_id,
+            ),
+            None,
+        )
+
+    return (
+        ActionResult(
+            success=False,
+            action=ActionType.LOOK,
+            message=f"你没有看到「{target_id}」。",
+            target=target_id,
+        ),
+        None,
+    )
+
+
+def _handle_take(request: ActionRequest, state: WorldState):
+    location = _get_player_location(state)
+    player = _get_player(state)
+    target_id = request.target
+
+    if target_id is None:
+        return (
+            ActionResult(
+                success=False, action=ActionType.TAKE, message="你想拾取什么？"
+            ),
+            None,
+        )
+
+    if target_id not in location.items:
+        return (
+            ActionResult(
+                success=False,
+                action=ActionType.TAKE,
+                message=f"这里没有「{target_id}」可以拾取。",
+                target=target_id,
+            ),
+            None,
+        )
+
+    if target_id not in state.items:
+        return (
+            ActionResult(
+                success=False,
+                action=ActionType.TAKE,
+                message=f"未知物品: {target_id}",
+                target=target_id,
+            ),
+            None,
+        )
+
+    item = state.items[target_id]
+
+    if not item.portable:
+        return (
+            ActionResult(
+                success=False,
+                action=ActionType.TAKE,
+                message=f"「{item.name}」太重了，无法拾取。",
+                target=target_id,
+            ),
+            None,
+        )
+
+    new_inventory = player.inventory + (target_id,)
+    new_location_items = tuple(i for i in location.items if i != target_id)
+
+    event = Event(
+        id=f"evt_{uuid.uuid4().hex[:8]}",
+        turn=state.turn,
+        type="take",
+        actor=state.player_id,
+        description=f"拾取了{item.name}",
+    )
+
+    diff = StateDiff(
+        updated_characters={state.player_id: {"inventory": new_inventory}},
+        updated_locations={location.id: {"items": new_location_items}},
+        new_events=(event,),
+        turn_increment=0,
+    )
+    return (
+        ActionResult(
+            success=True,
+            action=ActionType.TAKE,
+            message=f"你拾取了「{item.name}」。",
+            target=target_id,
+        ),
+        diff,
+    )
+
+
+def _handle_talk(request: ActionRequest, state: WorldState):
+    target_id = request.target
+    if target_id is None:
+        return (
+            ActionResult(
+                success=False, action=ActionType.TALK, message="你想和谁说话？"
+            ),
+            None,
+        )
+
+    if target_id not in state.characters:
+        return (
+            ActionResult(
+                success=False,
+                action=ActionType.TALK,
+                message=f"这里没有叫「{target_id}」的人。",
+                target=target_id,
+            ),
+            None,
+        )
+
+    location = _get_player_location(state)
+    if target_id not in location.npcs:
+        npc_name = state.characters[target_id].name
+        return (
+            ActionResult(
+                success=False,
+                action=ActionType.TALK,
+                message=f"{npc_name}不在这里。",
+                target=target_id,
+            ),
+            None,
+        )
+
+    npc_name = state.characters[target_id].name
+    return (
+        ActionResult(
+            success=True,
+            action=ActionType.TALK,
+            message=f"你走向{npc_name}，准备交谈。",
+            target=target_id,
+        ),
+        None,
+    )
+
+
+def _handle_custom(request: ActionRequest, state: WorldState):
+    return (
+        ActionResult(
+            success=True,
+            action=ActionType.CUSTOM,
+            message=f"你尝试了: {request.detail or '某些事情'}",
+            detail=request.detail,
+        ),
+        None,
+    )
+
+
+_ACTION_HANDLERS = {
+    ActionType.MOVE: _handle_move,
+    ActionType.LOOK: _handle_look,
+    ActionType.SEARCH: _handle_look,
+    ActionType.TAKE: _handle_take,
+    ActionType.TALK: _handle_talk,
+    ActionType.PERSUADE: _handle_talk,
+    ActionType.CUSTOM: _handle_custom,
+}
