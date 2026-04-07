@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import networkx as nx
@@ -123,3 +124,55 @@ class RelationshipGraph:
 
     def to_snapshot(self) -> dict:
         return nx.node_link_data(self._g, edges="links")
+
+
+class MemorySystem:
+    def __init__(self, state: WorldState, skills_dir: Path | None = None) -> None:
+        from tavern.world.skills import SkillManager  # lazy to avoid circular
+        self._timeline = EventTimeline(state.timeline)
+        try:
+            snapshot = dict(state.relationships_snapshot) if state.relationships_snapshot else None
+            self._relationship_graph = RelationshipGraph(snapshot=snapshot)
+        except Exception:
+            logger.warning("MemorySystem: failed to restore RelationshipGraph, using empty")
+            self._relationship_graph = RelationshipGraph()
+        self._skill_manager = SkillManager()
+        if skills_dir is not None:
+            self._skill_manager.load_skills(skills_dir)
+
+    def apply_diff(self, diff: StateDiff, new_state: WorldState) -> None:
+        for change in diff.relationship_changes:
+            if isinstance(change, dict):
+                delta = RelationshipDelta(
+                    src=change["src"], tgt=change["tgt"], delta=change["delta"]
+                )
+            else:
+                delta = change
+            self._relationship_graph.update(delta)
+        self._timeline = EventTimeline(new_state.timeline)
+
+    def build_context(
+        self,
+        actor: str,
+        state: WorldState,
+        current_topic: str = "",
+        max_tokens: int = 2000,
+    ) -> MemoryContext:
+        recent_events = self._timeline.summarize()
+        relationship_summary = self._relationship_graph.describe_for_prompt(actor)
+        max_chars = max(100, max_tokens * 3 // 4)
+        active_skills = self._skill_manager.get_active_skills(
+            actor, state, self._timeline, self._relationship_graph
+        )
+        active_skills_text = self._skill_manager.inject_to_prompt(
+            active_skills, max_chars=max_chars
+        )
+        return MemoryContext(
+            recent_events=recent_events,
+            relationship_summary=relationship_summary,
+            active_skills_text=active_skills_text,
+        )
+
+    def sync_to_state(self, state: WorldState) -> WorldState:
+        snapshot = self._relationship_graph.to_snapshot()
+        return state.model_copy(update={"relationships_snapshot": snapshot})

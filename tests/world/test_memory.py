@@ -176,3 +176,99 @@ class TestRelationshipGraph:
         assert g.get("x", "y").value == 0
         assert any("corrupt" in r.message.lower() or "snapshot" in r.message.lower()
                    for r in caplog.records)
+
+
+class TestMemorySystem:
+    def _make_state(self, trust: int = 0):
+        from tavern.world.models import Character, CharacterRole, Location
+        from tavern.world.state import WorldState
+        return WorldState(
+            turn=3,
+            player_id="player",
+            locations={"hall": Location(id="hall", name="大厅", description="大厅", npcs=("traveler",))},
+            characters={
+                "player": Character(
+                    id="player", name="冒险者", role=CharacterRole.PLAYER,
+                    stats={"hp": 100}, location_id="hall",
+                ),
+                "traveler": Character(
+                    id="traveler", name="旅行者", role=CharacterRole.NPC,
+                    stats={"trust": trust}, location_id="hall",
+                ),
+            },
+            items={},
+            timeline=(
+                Event(id="e1", turn=1, type="move", actor="player", description="进入酒馆", consequences=()),
+            ),
+        )
+
+    def test_build_context_returns_memory_context(self):
+        from tavern.world.memory import MemorySystem
+        state = self._make_state()
+        mem = MemorySystem(state=state)
+        ctx = mem.build_context("traveler", state)
+        assert isinstance(ctx, MemoryContext)
+        assert isinstance(ctx.recent_events, str)
+        assert isinstance(ctx.relationship_summary, str)
+        assert isinstance(ctx.active_skills_text, str)
+
+    def test_build_context_recent_events_contains_event(self):
+        from tavern.world.memory import MemorySystem
+        state = self._make_state()
+        mem = MemorySystem(state=state)
+        ctx = mem.build_context("traveler", state)
+        assert "进入酒馆" in ctx.recent_events
+
+    def test_apply_diff_syncs_relationship(self):
+        from tavern.world.memory import MemorySystem
+        from tavern.world.state import StateDiff
+        state = self._make_state()
+        mem = MemorySystem(state=state)
+
+        diff = StateDiff(
+            relationship_changes=(
+                {"src": "traveler", "tgt": "player", "delta": 30},
+            ),
+        )
+        new_state = state.apply(diff)
+        mem.apply_diff(diff, new_state)
+
+        rel = mem._relationship_graph.get("traveler", "player")
+        assert rel.value == 30
+
+    def test_apply_diff_empty_relationship_changes_is_noop(self):
+        from tavern.world.memory import MemorySystem
+        from tavern.world.state import StateDiff
+        state = self._make_state()
+        mem = MemorySystem(state=state)
+        diff = StateDiff(turn_increment=1)
+        new_state = state.apply(diff)
+        mem.apply_diff(diff, new_state)  # should not raise
+
+    def test_apply_diff_rebuilds_timeline(self):
+        from tavern.world.memory import MemorySystem
+        from tavern.world.state import StateDiff
+        state = self._make_state()
+        mem = MemorySystem(state=state)
+        new_event = Event(id="e2", turn=4, type="talk", actor="traveler",
+                          description="旅行者谈起北方", consequences=())
+        diff = StateDiff(new_events=(new_event,))
+        new_state = state.apply(diff)
+        mem.apply_diff(diff, new_state)
+        ctx = mem.build_context("traveler", new_state)
+        assert "旅行者谈起北方" in ctx.recent_events
+
+    def test_sync_to_state_writes_snapshot(self):
+        from tavern.world.memory import MemorySystem
+        state = self._make_state()
+        mem = MemorySystem(state=state)
+        mem._relationship_graph.update(RelationshipDelta(src="a", tgt="b", delta=10))
+        new_state = mem.sync_to_state(state)
+        assert new_state.relationships_snapshot != {}
+
+    def test_init_with_no_skills_dir(self):
+        from tavern.world.memory import MemorySystem
+        state = self._make_state()
+        mem = MemorySystem(state=state, skills_dir=None)
+        ctx = mem.build_context("traveler", state)
+        assert ctx.active_skills_text == ""
