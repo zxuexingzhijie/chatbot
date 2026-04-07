@@ -81,7 +81,6 @@ class TestGenerateSummary:
             return_value='{"summary": "旅行者分享了北方的传说。", "key_info": ["北方有宝藏"]}'
         )
         result = await llm_service.generate_summary(
-            dialogue_messages=[{"role": "user", "content": "聊天内容"}],
             summary_prompt="请总结",
         )
         assert result["summary"] == "旅行者分享了北方的传说。"
@@ -91,7 +90,6 @@ class TestGenerateSummary:
     async def test_fallback_on_invalid_json(self, llm_service, mock_intent_adapter):
         mock_intent_adapter.complete = AsyncMock(return_value="不是JSON")
         result = await llm_service.generate_summary(
-            dialogue_messages=[],
             summary_prompt="请总结",
         )
         assert "summary" in result

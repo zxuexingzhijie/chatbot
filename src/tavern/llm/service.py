@@ -96,7 +96,6 @@ class LLMService:
 
     async def generate_summary(
         self,
-        dialogue_messages: list[dict],
         summary_prompt: str,
     ) -> dict:
         messages = [
