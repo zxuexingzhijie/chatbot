@@ -121,3 +121,43 @@ class TestBuildNarrativePrompt:
         )
         messages = build_narrative_prompt(ctx)
         assert "勇敢的艾拉" in messages[0]["content"]
+
+
+class TestBuildNarrativePromptWithMemory:
+    def _make_ctx(self):
+        return NarrativeContext(
+            action_type="move",
+            action_message="你走进了吧台区。",
+            location_name="吧台区",
+            location_desc="木质吧台。",
+            player_name="冒险者",
+            target=None,
+        )
+
+    def test_memory_ctx_none_behaves_as_before(self):
+        ctx = self._make_ctx()
+        messages = build_narrative_prompt(ctx, memory_ctx=None)
+        assert len(messages) == 2
+        assert messages[0]["role"] == "system"
+
+    def test_memory_ctx_recent_events_appended_to_system(self):
+        from tavern.world.memory import MemoryContext
+        ctx = self._make_ctx()
+        memory_ctx = MemoryContext(
+            recent_events="[已省略2条]\n旅行者谈起北方",
+            relationship_summary="traveler对player的信任: 20（友好）",
+            active_skills_text="",
+        )
+        messages = build_narrative_prompt(ctx, memory_ctx=memory_ctx)
+        assert "旅行者谈起北方" in messages[0]["content"]
+
+    def test_memory_ctx_relationship_appended_to_system(self):
+        from tavern.world.memory import MemoryContext
+        ctx = self._make_ctx()
+        memory_ctx = MemoryContext(
+            recent_events="（尚无历史事件）",
+            relationship_summary="traveler对player的信任: 35（友好）",
+            active_skills_text="",
+        )
+        messages = build_narrative_prompt(ctx, memory_ctx=memory_ctx)
+        assert "traveler" in messages[0]["content"]

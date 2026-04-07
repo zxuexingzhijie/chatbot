@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from tavern.world.memory import MemoryContext
 
 NARRATIVE_TEMPLATES: dict[str, str] = {
     "move": (
@@ -36,7 +40,10 @@ class NarrativeContext:
     target: str | None
 
 
-def build_narrative_prompt(ctx: NarrativeContext) -> list[dict[str, str]]:
+def build_narrative_prompt(
+    ctx: NarrativeContext,
+    memory_ctx: MemoryContext | None = None,
+) -> list[dict[str, str]]:
     system_style = NARRATIVE_TEMPLATES.get(ctx.action_type, NARRATIVE_TEMPLATES["_default"])
 
     system_content = (
@@ -44,6 +51,12 @@ def build_narrative_prompt(ctx: NarrativeContext) -> list[dict[str, str]]:
         f"当前地点：{ctx.location_name}——{ctx.location_desc}\n"
         f"玩家角色名：{ctx.player_name}"
     )
+
+    if memory_ctx is not None:
+        if memory_ctx.recent_events:
+            system_content += f"\n\n【近期历史】\n{memory_ctx.recent_events}"
+        if memory_ctx.relationship_summary:
+            system_content += f"\n\n【关系状态】\n{memory_ctx.relationship_summary}"
 
     user_parts = [ctx.action_message]
     if ctx.target:

@@ -8,6 +8,7 @@ from tavern.world.state import WorldState
 
 if TYPE_CHECKING:
     from tavern.llm.service import LLMService
+    from tavern.world.memory import MemoryContext
 
 
 class Narrator:
@@ -15,11 +16,14 @@ class Narrator:
         self._llm = llm_service
 
     async def stream_narrative(
-        self, result: ActionResult, state: WorldState
+        self,
+        result: ActionResult,
+        state: WorldState,
+        memory_ctx: MemoryContext | None = None,
     ) -> AsyncGenerator[str, None]:
         try:
             ctx = self._build_context(result, state)
-            messages = build_narrative_prompt(ctx)
+            messages = build_narrative_prompt(ctx, memory_ctx)
             system_prompt = messages[0]["content"]
             action_message = messages[1]["content"]
             async for chunk in self._llm.stream_narrative(system_prompt, action_message):
