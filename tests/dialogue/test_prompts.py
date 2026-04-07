@@ -88,3 +88,42 @@ class TestBuildDialoguePrompt:
             ctx, "某地", history_summaries=("上次聊到了宝藏",)
         )
         assert "上次聊到了宝藏" in prompt
+
+    def test_prompt_contains_location_name(self):
+        ctx = DialogueContext(
+            npc_id="npc1", npc_name="NPC", npc_traits=(), trust=0,
+            tone="neutral", messages=(), location_id="loc1", turn_entered=0,
+        )
+        prompt = build_dialogue_prompt(ctx, "神秘地点", history_summaries=())
+        assert "神秘地点" in prompt
+
+    def test_prompt_contains_trust_value(self):
+        ctx = DialogueContext(
+            npc_id="npc1", npc_name="NPC", npc_traits=(), trust=15,
+            tone="neutral", messages=(), location_id="loc1", turn_entered=0,
+        )
+        prompt = build_dialogue_prompt(ctx, "某地", history_summaries=())
+        assert "15" in prompt
+
+
+class TestBuildSummaryPrompt:
+    def test_contains_npc_name(self):
+        from tavern.dialogue.prompts import build_summary_prompt
+        prompt = build_summary_prompt("旅行者", [{"role": "user", "content": "你好"}])
+        assert "旅行者" in prompt
+
+    def test_contains_json_instruction(self):
+        from tavern.dialogue.prompts import build_summary_prompt
+        prompt = build_summary_prompt("NPC", [])
+        assert "summary" in prompt
+        assert "key_info" in prompt
+
+    def test_includes_dialogue_content(self):
+        from tavern.dialogue.prompts import build_summary_prompt
+        messages = [
+            {"role": "user", "content": "北方有什么？"},
+            {"role": "assistant", "content": "北方有宝藏。"},
+        ]
+        prompt = build_summary_prompt("旅行者", messages)
+        assert "北方有什么" in prompt
+        assert "北方有宝藏" in prompt
