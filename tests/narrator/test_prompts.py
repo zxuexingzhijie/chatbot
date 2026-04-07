@@ -120,5 +120,4 @@ class TestBuildNarrativePrompt:
             target=None,
         )
         messages = build_narrative_prompt(ctx)
-        full_text = messages[0]["content"] + messages[1]["content"]
-        assert len(full_text) > 50
+        assert "勇敢的艾拉" in messages[0]["content"]

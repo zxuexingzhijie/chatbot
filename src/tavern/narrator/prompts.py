@@ -36,7 +36,7 @@ class NarrativeContext:
     target: str | None
 
 
-def build_narrative_prompt(ctx: NarrativeContext) -> list[dict]:
+def build_narrative_prompt(ctx: NarrativeContext) -> list[dict[str, str]]:
     system_style = NARRATIVE_TEMPLATES.get(ctx.action_type, NARRATIVE_TEMPLATES["_default"])
 
     system_content = (
