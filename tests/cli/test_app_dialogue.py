@@ -136,3 +136,107 @@ class TestGameAppDialogueFlow:
         mock_dialogue_manager.respond.assert_called_once_with(
             mock_dialogue_ctx, "你好", mock_state
         )
+
+
+class TestNarrativeIntegration:
+    @pytest.mark.asyncio
+    async def test_successful_action_uses_render_stream_not_render_result(
+        self, mock_state
+    ):
+        """render_stream called (not render_result) on successful non-dialogue action."""
+        from unittest.mock import patch, AsyncMock, MagicMock
+        from tavern.world.state import StateManager
+        from tavern.dialogue.manager import DialogueManager
+        from tavern.narrator.narrator import Narrator
+        from tavern.cli.renderer import Renderer
+
+        async def fake_stream(system_prompt, action_message):
+            yield "叙事内容"
+
+        mock_llm_service = MagicMock()
+        mock_llm_service.stream_narrative = fake_stream
+
+        state_manager = StateManager(initial_state=mock_state)
+        app = GameApp.__new__(GameApp)
+        app._state_manager = state_manager
+        app._renderer = MagicMock()
+        app._renderer.render_status_bar = MagicMock()
+        app._dialogue_manager = DialogueManager(llm_service=mock_llm_service)
+        app._dialogue_ctx = None
+        app._narrator = Narrator(llm_service=mock_llm_service)
+        app._show_intent = False
+
+        render_result_calls = []
+        render_stream_calls = []
+        app._renderer.render_result = lambda r: render_result_calls.append(r)
+
+        async def mock_render_stream(stream):
+            async for _ in stream:
+                pass
+            render_stream_calls.append(True)
+
+        app._renderer.render_stream = mock_render_stream
+
+        from tavern.engine.rules import RulesEngine
+        from tavern.parser.intent import IntentParser
+        app._rules = RulesEngine()
+
+        mock_intent = AsyncMock()
+        from tavern.world.models import ActionRequest
+        from tavern.engine.actions import ActionType
+        mock_intent.complete = AsyncMock(
+            return_value=ActionRequest(action=ActionType.LOOK)
+        )
+        app._parser = IntentParser(llm_service=MagicMock())
+
+        with patch.object(app._parser, "parse", new_callable=AsyncMock) as mock_parse:
+            mock_parse.return_value = ActionRequest(action=ActionType.LOOK)
+            await app._handle_free_input("看看四周")
+
+        assert len(render_stream_calls) == 1
+        assert len(render_result_calls) == 0
+
+    @pytest.mark.asyncio
+    async def test_failed_action_uses_render_result_not_render_stream(
+        self, mock_state
+    ):
+        """render_result called (not render_stream) on failed action."""
+        from unittest.mock import patch, AsyncMock, MagicMock
+        from tavern.world.state import StateManager
+        from tavern.dialogue.manager import DialogueManager
+        from tavern.narrator.narrator import Narrator
+        from tavern.engine.rules import RulesEngine
+        from tavern.parser.intent import IntentParser
+
+        mock_llm_service = MagicMock()
+        state_manager = StateManager(initial_state=mock_state)
+        app = GameApp.__new__(GameApp)
+        app._state_manager = state_manager
+        app._renderer = MagicMock()
+        app._renderer.render_status_bar = MagicMock()
+        app._dialogue_manager = DialogueManager(llm_service=mock_llm_service)
+        app._dialogue_ctx = None
+        app._narrator = Narrator(llm_service=mock_llm_service)
+        app._show_intent = False
+        app._rules = RulesEngine()
+        app._parser = IntentParser(llm_service=MagicMock())
+
+        render_result_calls = []
+        render_stream_calls = []
+        app._renderer.render_result = lambda r: render_result_calls.append(r)
+
+        async def mock_render_stream(stream):
+            render_stream_calls.append(True)
+
+        app._renderer.render_stream = mock_render_stream
+
+        with patch.object(app._parser, "parse", new_callable=AsyncMock) as mock_parse:
+            from tavern.world.models import ActionRequest
+            from tavern.engine.actions import ActionType
+            mock_parse.return_value = ActionRequest(
+                action=ActionType.MOVE, target="nowhere"
+            )
+            await app._handle_free_input("走向虚空")
+
+        assert len(render_result_calls) == 1
+        assert len(render_stream_calls) == 0

@@ -11,6 +11,7 @@ import uuid
 from tavern.cli.renderer import Renderer
 from tavern.dialogue.context import DialogueContext
 from tavern.dialogue.manager import DialogueManager
+from tavern.narrator.narrator import Narrator
 from tavern.engine.actions import ActionType
 from tavern.engine.rules import RulesEngine
 from tavern.llm.adapter import LLMConfig, LLMRegistry
@@ -63,6 +64,7 @@ class GameApp:
         )
         self._parser = IntentParser(llm_service=llm_service)
         self._dialogue_manager = DialogueManager(llm_service=llm_service)
+        self._narrator = Narrator(llm_service=llm_service)
         self._dialogue_ctx: DialogueContext | None = None
 
         debug_config = config.get("debug", {})
@@ -181,7 +183,12 @@ class GameApp:
                 self._renderer.console.print(f"\n[red]{e}[/]\n")
                 return
 
-        self._renderer.render_result(result)
+        if result.success and not self._dialogue_manager.is_active:
+            await self._renderer.render_stream(
+                self._narrator.stream_narrative(result, self.state)
+            )
+        else:
+            self._renderer.render_result(result)
         self._renderer.render_status_bar(self.state)
 
     async def _process_dialogue_input(
