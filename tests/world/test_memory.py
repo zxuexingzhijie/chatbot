@@ -106,3 +106,64 @@ class TestEventTimeline:
         timeline = EventTimeline(events)
         assert timeline.has("quest_started") is True
         assert timeline.has("nonexistent") is False
+
+
+class TestRelationshipGraph:
+    def test_get_nonexistent_edge_returns_zero(self):
+        from tavern.world.memory import RelationshipGraph
+        g = RelationshipGraph()
+        rel = g.get("player", "traveler")
+        assert rel.value == 0
+        assert rel.src == "player"
+        assert rel.tgt == "traveler"
+
+    def test_update_adds_edge(self):
+        from tavern.world.memory import RelationshipGraph
+        g = RelationshipGraph()
+        rel = g.update(RelationshipDelta(src="player", tgt="traveler", delta=20))
+        assert rel.value == 20
+
+    def test_update_clamps_upper(self):
+        from tavern.world.memory import RelationshipGraph
+        g = RelationshipGraph()
+        g.update(RelationshipDelta(src="a", tgt="b", delta=90))
+        rel = g.update(RelationshipDelta(src="a", tgt="b", delta=90))
+        assert rel.value == 100
+
+    def test_update_clamps_lower(self):
+        from tavern.world.memory import RelationshipGraph
+        g = RelationshipGraph()
+        g.update(RelationshipDelta(src="a", tgt="b", delta=-90))
+        rel = g.update(RelationshipDelta(src="a", tgt="b", delta=-90))
+        assert rel.value == -100
+
+    def test_get_all_for_returns_outgoing(self):
+        from tavern.world.memory import RelationshipGraph
+        g = RelationshipGraph()
+        g.update(RelationshipDelta(src="traveler", tgt="player", delta=10))
+        g.update(RelationshipDelta(src="traveler", tgt="grim", delta=-5))
+        g.update(RelationshipDelta(src="player", tgt="traveler", delta=15))
+        rels = g.get_all_for("traveler")
+        assert len(rels) == 2
+        assert all(r.src == "traveler" for r in rels)
+
+    def test_describe_for_prompt_contains_char(self):
+        from tavern.world.memory import RelationshipGraph
+        g = RelationshipGraph()
+        g.update(RelationshipDelta(src="traveler", tgt="player", delta=25))
+        text = g.describe_for_prompt("traveler")
+        assert "traveler" in text or "player" in text
+        assert "25" in text or "友好" in text
+
+    def test_snapshot_round_trip(self):
+        from tavern.world.memory import RelationshipGraph
+        g = RelationshipGraph()
+        g.update(RelationshipDelta(src="a", tgt="b", delta=30))
+        snapshot = g.to_snapshot()
+        g2 = RelationshipGraph(snapshot=snapshot)
+        assert g2.get("a", "b").value == 30
+
+    def test_init_from_none_snapshot(self):
+        from tavern.world.memory import RelationshipGraph
+        g = RelationshipGraph(snapshot=None)
+        assert g.get("x", "y").value == 0
