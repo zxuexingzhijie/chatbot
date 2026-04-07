@@ -107,3 +107,15 @@ class LLMService:
             return json.loads(raw if isinstance(raw, str) else str(raw))
         except (json.JSONDecodeError, ValueError):
             return {"summary": "进行了一段对话", "key_info": []}
+
+    async def stream_narrative(
+        self,
+        system_prompt: str,
+        action_message: str,
+    ):
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": action_message},
+        ]
+        async for chunk in self._narrative.stream(messages):
+            yield chunk
