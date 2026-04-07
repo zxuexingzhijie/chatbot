@@ -179,7 +179,7 @@ class GameApp:
         ) and result.target:
             try:
                 memory_ctx = self._memory.build_context(
-                    actor=result.target or self.state.player_id,
+                    actor=result.target,
                     state=self.state,
                 )
                 ctx, opening_response = await self._dialogue_manager.start(

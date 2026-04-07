@@ -78,8 +78,7 @@ class TestGameAppMemory:
             mock_memory_cls.return_value = MagicMock()
 
             app = GameApp.__new__(GameApp)
-            with patch.object(Path, "exists", return_value=False):
-                GameApp.__init__(app, config_path="nonexistent.yaml")
+            GameApp.__init__(app, config_path="nonexistent.yaml")
 
             mock_memory_cls.assert_called_once()
             call_kwargs = mock_memory_cls.call_args
