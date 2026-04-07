@@ -41,6 +41,14 @@ class Renderer:
 
         self.console.print(f"\n{prefix}{result.message}\n", style=style)
 
+    async def render_stream(self, stream) -> None:
+        try:
+            async for chunk in stream:
+                self.console.print(chunk, end="", highlight=False)
+        except Exception:
+            pass
+        self.console.print()
+
     def render_inventory(self, state: WorldState) -> None:
         player = state.characters[state.player_id]
         if not player.inventory:

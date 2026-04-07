@@ -100,3 +100,41 @@ class TestDialogueRenderer:
         console = Console(file=StringIO(), width=80)
         renderer = Renderer(console=console)
         assert callable(renderer.get_dialogue_input)
+
+
+async def _async_gen(*values):
+    for v in values:
+        yield v
+
+
+async def _raise_mid_stream():
+    yield "你走进了"
+    raise RuntimeError("stream interrupted")
+
+
+class TestRenderStream:
+    @pytest.mark.asyncio
+    async def test_render_stream_outputs_all_chunks(self):
+        console = Console(file=StringIO(), width=80)
+        renderer = Renderer(console=console)
+        await renderer.render_stream(_async_gen("你走进了", "温暖的酒馆。"))
+        output = console.file.getvalue()
+        assert "你走进了" in output
+        assert "温暖的酒馆。" in output
+
+    @pytest.mark.asyncio
+    async def test_render_stream_adds_trailing_newline(self):
+        console = Console(file=StringIO(), width=80)
+        renderer = Renderer(console=console)
+        await renderer.render_stream(_async_gen("内容"))
+        output = console.file.getvalue()
+        assert output.endswith("\n")
+
+    @pytest.mark.asyncio
+    async def test_render_stream_handles_mid_stream_error(self):
+        console = Console(file=StringIO(), width=80)
+        renderer = Renderer(console=console)
+        await renderer.render_stream(_raise_mid_stream())
+        output = console.file.getvalue()
+        assert "你走进了" in output
+        assert output.endswith("\n")
