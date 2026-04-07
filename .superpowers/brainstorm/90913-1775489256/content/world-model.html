@@ -1,0 +1,140 @@
+<h2>世界模型与数据结构</h2>
+<p class="subtitle">角色、地点、物品、关系、事件 — 以奇幻酒馆为例</p>
+
+<div class="mockup">
+  <div class="mockup-header">核心数据模型 (dataclass / Pydantic)</div>
+  <div class="mockup-body" style="padding:20px; font-family:monospace; font-size:12px; line-height:1.7;">
+
+<pre style="margin:0; color:#e2e8f0;">
+<span style="color:#f59e0b;">## Character（角色）</span>
+Character:
+  id: str                    <span style="color:#888;"># "bartender_grim"</span>
+  name: str                  <span style="color:#888;"># "格里姆老头"</span>
+  role: enum                 <span style="color:#888;"># NPC | PLAYER</span>
+  traits: list[str]          <span style="color:#888;"># ["暴躁", "善良内心", "酗酒"]</span>
+  stats: dict[str, int]      <span style="color:#888;"># {"hp": 100, "trust": 0}</span>
+  inventory: list[str]       <span style="color:#888;"># ["生锈钥匙", "酒杯"]</span>
+  location_id: str           <span style="color:#888;"># "tavern_bar"</span>
+  knowledge: set[str]        <span style="color:#888;"># {"知道地下室密道", "见过玩家偷酒"}</span>
+
+<span style="color:#f59e0b;">## Location（地点）</span>
+Location:
+  id: str                    <span style="color:#888;"># "tavern_bar"</span>
+  name: str                  <span style="color:#888;"># "酒馆吧台"</span>
+  description: str           <span style="color:#888;"># 基础描述文本</span>
+  exits: dict[str, Exit]     <span style="color:#888;"># {"north": Exit("tavern_hall", locked=False)}</span>
+  items: list[str]           <span style="color:#888;"># ["破旧告示", "半杯麦酒"]</span>
+  npcs: list[str]            <span style="color:#888;"># ["bartender_grim"]</span>
+
+<span style="color:#f59e0b;">## Item（物品）</span>
+Item:
+  id: str                    <span style="color:#888;"># "rusty_key"</span>
+  name: str                  <span style="color:#888;"># "生锈钥匙"</span>
+  description: str
+  portable: bool             <span style="color:#888;"># 可否拾取</span>
+  usable_with: list[str]     <span style="color:#888;"># ["cellar_door"] 可交互目标</span>
+
+<span style="color:#f59e0b;">## Relationship（关系边）</span>
+Relationship:
+  source: str                <span style="color:#888;"># "bartender_grim"</span>
+  target: str                <span style="color:#888;"># "player"</span>
+  type: enum                 <span style="color:#888;"># TRUST | FEAR | HOSTILITY | ALLIANCE</span>
+  value: int                 <span style="color:#888;"># -100 ~ 100</span>
+
+<span style="color:#f59e0b;">## Event（事件记录）</span>
+Event:
+  id: str
+  timestamp: int             <span style="color:#888;"># 游戏内回合数</span>
+  type: str                  <span style="color:#888;"># "dialogue" | "item_use" | "discovery"</span>
+  actor: str                 <span style="color:#888;"># 执行者</span>
+  description: str           <span style="color:#888;"># "玩家向酒保询问了地下室"</span>
+  consequences: list[str]    <span style="color:#888;"># ["bartender_trust -= 10"]</span>
+</pre>
+
+  </div>
+</div>
+
+<div style="margin-top:24px;">
+  <div class="mockup">
+    <div class="mockup-header">奇幻酒馆 — 地图结构</div>
+    <div class="mockup-body" style="padding:24px; text-align:center; font-family:monospace; font-size:13px;">
+
+      <div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap; align-items:start;">
+
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+          <div style="border:2px solid #f59e0b; border-radius:8px; padding:12px 16px; background:#fef3c7; min-width:120px;">
+            <div style="font-weight:bold; color:#92400e;">🏠 酒馆大厅</div>
+            <div style="font-size:11px; color:#78350f;">主场景入口</div>
+            <div style="font-size:10px; color:#92400e; margin-top:4px;">NPC: 旅行者</div>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; color:#666; font-size:18px;">↔</div>
+
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+          <div style="border:2px solid #ef4444; border-radius:8px; padding:12px 16px; background:#fef2f2; min-width:120px;">
+            <div style="font-weight:bold; color:#991b1b;">🍺 吧台区</div>
+            <div style="font-size:11px; color:#7f1d1d;">核心交互区</div>
+            <div style="font-size:10px; color:#991b1b; margin-top:4px;">NPC: 酒保格里姆</div>
+          </div>
+          <div style="color:#666; font-size:18px;">↕</div>
+          <div style="border:2px solid #8b5cf6; border-radius:8px; padding:12px 16px; background:#f5f3ff; min-width:120px;">
+            <div style="font-weight:bold; color:#5b21b6;">🔒 地下室</div>
+            <div style="font-size:11px; color:#6d28d9;">需要钥匙</div>
+            <div style="font-size:10px; color:#5b21b6; margin-top:4px;">隐藏: 密道入口</div>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; color:#666; font-size:18px;">↔</div>
+
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+          <div style="border:2px solid #10b981; border-radius:8px; padding:12px 16px; background:#ecfdf5; min-width:120px;">
+            <div style="font-weight:bold; color:#065f46;">🛏️ 客房走廊</div>
+            <div style="font-size:11px; color:#064e3b;">支线探索</div>
+            <div style="font-size:10px; color:#065f46; margin-top:4px;">NPC: 神秘旅客</div>
+          </div>
+          <div style="color:#666; font-size:18px;">↕</div>
+          <div style="border:2px solid #06b6d4; border-radius:8px; padding:12px 16px; background:#ecfeff; min-width:120px;">
+            <div style="font-weight:bold; color:#0e7490;">🌙 后院</div>
+            <div style="font-size:11px; color:#155e75;">可选区域</div>
+            <div style="font-size:10px; color:#0e7490; margin-top:4px;">物品: 废弃马车</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px;">
+  <h3>存档快照格式 (JSON)</h3>
+  <div class="mockup">
+    <div class="mockup-body" style="padding:16px; font-family:monospace; font-size:12px;">
+<pre style="margin:0; color:#e2e8f0;">{
+  "save_version": 1,
+  "turn": 15,
+  "player": {
+    "location": "tavern_bar",
+    "inventory": ["lantern", "note"],
+    "stats": {"hp": 10, "gold": 5}
+  },
+  "world": {
+    "cellar_door": "locked",
+    "bartender_mood": "suspicious"
+  },
+  "relationships": [
+    {"source": "bartender", "target": "player", "type": "trust", "value": -20}
+  ],
+  "quests": {
+    "find_cellar_secret": "in_progress",
+    "help_traveler": "not_started"
+  },
+  "timeline": [
+    {"turn": 1, "event": "entered_tavern"},
+    {"turn": 5, "event": "asked_about_cellar"},
+    {"turn": 12, "event": "found_note_in_room"}
+  ]
+}</pre>
+    </div>
+  </div>
+</div>

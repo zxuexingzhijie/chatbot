@@ -1,0 +1,88 @@
+<h2>三种实现方案对比</h2>
+<p class="subtitle">选择最适合"奇幻酒馆探索"MVP的架构方案</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>状态机驱动 + LLM润色</h3>
+      <p><strong>核心思路：</strong>用Python有限状态机管理场景/对话流转，规则引擎硬编码世界逻辑，LLM只负责将干巴巴的状态变化渲染成生动文本</p>
+
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>Pros</h4>
+          <ul>
+            <li>剧情100%可控，不会跑偏</li>
+            <li>LLM调用最少，成本最低</li>
+            <li>状态可追踪、可调试</li>
+            <li>离线模式可用（降级为预设文本）</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>Cons</h4>
+          <ul>
+            <li>自由度受限于预设状态</li>
+            <li>内容创作工作量大</li>
+            <li>缺乏"惊喜感"</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>混合管道架构（推荐）</h3>
+      <p><strong>核心思路：</strong>三层管道 — 意图解析层（LLM分类）→ 规则引擎验证 → LLM叙事生成。规则引擎做"守门人"，LLM做"说书人"</p>
+
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>Pros</h4>
+          <ul>
+            <li>自由输入+可控剧情的最佳平衡</li>
+            <li>完全符合两份文档的设计理念</li>
+            <li>模块化清晰，各层可独立测试</li>
+            <li>支持渐进增强（先硬编码后AI）</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>Cons</h4>
+          <ul>
+            <li>需要2次LLM调用/轮（解析+生成）</li>
+            <li>意图分类准确率需要调优</li>
+            <li>开发复杂度中等</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>全LLM Agent驱动</h3>
+      <p><strong>核心思路：</strong>用一个强LLM Agent作为GM（游戏主持人），通过Function Calling操纵世界状态，System Prompt嵌入世界规则</p>
+
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>Pros</h4>
+          <ul>
+            <li>最大自由度和创意空间</li>
+            <li>代码量最少，快速出原型</li>
+            <li>Function Calling管理状态可追踪</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>Cons</h4>
+          <ul>
+            <li>剧情容易失控（AI Dungeon老问题）</li>
+            <li>API成本最高（长context）</li>
+            <li>调试困难，行为不可预测</li>
+            <li>离线无法运行</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

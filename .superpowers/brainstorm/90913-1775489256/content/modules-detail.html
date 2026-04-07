@@ -1,0 +1,510 @@
+<h2>横切模块详细设计</h2>
+<p class="subtitle">状态管理器 / 记忆系统 / LLM适配器 — 内部实现细节</p>
+
+<!-- State Manager -->
+<div class="mockup">
+  <div class="mockup-header">① 状态管理器 (world/state.py)</div>
+  <div class="mockup-body" style="padding:20px; font-size:12px;">
+
+    <div style="display:flex; gap:16px; flex-wrap:wrap;">
+
+      <!-- Class Design -->
+      <div style="flex:1; min-width:300px;">
+        <div style="color:#4a9eff; font-weight:bold; margin-bottom:10px;">类结构</div>
+        <div style="font-family:monospace; font-size:11px; color:#e2e8f0; line-height:1.8; background:#0f172a; padding:14px; border-radius:8px;">
+<pre style="margin:0;">
+<span style="color:#f59e0b;">class WorldState</span>(frozen Pydantic BaseModel):
+    turn: int
+    player: Character
+    locations: dict[str, Location]
+    characters: dict[str, Character]
+    items: dict[str, Item]
+    relationships: list[Relationship]
+    quests: dict[str, QuestStatus]
+    timeline: list[Event]
+
+    <span style="color:#10b981;">def apply(self, diff: StateDiff) -> WorldState:</span>
+        <span style="color:#64748b;">"""不可变更新 — 返回新WorldState实例
+        合并diff中的变更到当前状态
+        """</span>
+
+<span style="color:#f59e0b;">class StateDiff</span>(BaseModel):
+    <span style="color:#64748b;">"""规则引擎输出的状态变更描述"""</span>
+    updated_characters: dict[str, CharacterPatch]
+    updated_locations: dict[str, LocationPatch]
+    added_items: list[Item]
+    removed_items: list[str]
+    relationship_changes: list[RelationshipDelta]
+    quest_updates: dict[str, QuestStatus]
+    new_events: list[Event]
+    turn_increment: int = 1
+
+<span style="color:#f59e0b;">class StateManager:</span>
+    _current: WorldState
+    _history: deque[WorldState]  <span style="color:#64748b;"># undo栈，maxlen=50</span>
+    _redo: deque[WorldState]     <span style="color:#64748b;"># redo栈</span>
+
+    <span style="color:#10b981;">def commit(self, diff: StateDiff) -> WorldState:</span>
+        <span style="color:#64748b;">"""将diff应用到当前状态
+        1. 推入_history栈（保存旧状态）
+        2. _current = _current.apply(diff)
+        3. 清空_redo栈
+        4. 触发auto_save检查
+        返回新的WorldState
+        """</span>
+
+    <span style="color:#10b981;">def undo(self) -> WorldState:</span>
+        <span style="color:#64748b;">"""回退一步
+        1. 推当前状态到_redo栈
+        2. _current = _history.pop()
+        """</span>
+
+    <span style="color:#10b981;">def redo(self) -> WorldState:</span>
+        <span style="color:#64748b;">"""重做一步（如果redo栈非空）"""</span>
+
+    <span style="color:#10b981;">def snapshot(self) -> dict:</span>
+        <span style="color:#64748b;">"""序列化当前状态为JSON-ready dict"""</span>
+
+    <span style="color:#10b981;">def save(self, name: str, path: Path) -> Path:</span>
+        <span style="color:#64748b;">"""存档到 saves/{name}.json
+        1. snapshot()获取当前状态dict
+        2. 附加meta: save_version, timestamp, checksum
+        3. 写入JSON文件（atomic write: 先写tmp再rename）
+        """</span>
+
+    <span style="color:#10b981;">def load(self, name: str, path: Path) -> WorldState:</span>
+        <span style="color:#64748b;">"""从 saves/{name}.json 加载
+        1. 读取JSON
+        2. 校验save_version兼容性
+        3. 校验checksum完整性
+        4. 反序列化为WorldState
+        5. 清空_history和_redo栈
+        """</span>
+
+    <span style="color:#10b981;">def list_saves(self, path: Path) -> list[SaveInfo]:</span>
+        <span style="color:#64748b;">"""列出所有存档，返回名称+时间+回合数"""</span>
+</pre>
+        </div>
+      </div>
+
+      <!-- Flow & Key Decisions -->
+      <div style="flex:1; min-width:260px;">
+        <div style="color:#4a9eff; font-weight:bold; margin-bottom:10px;">设计决策</div>
+
+        <div style="background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px; margin-bottom:12px;">
+          <div style="color:#f59e0b; font-weight:bold; font-size:11px; margin-bottom:6px;">不可变状态 (Immutable)</div>
+          <div style="color:#94a3b8; font-size:11px; line-height:1.7;">
+            WorldState是frozen Pydantic model，每次变更返回新实例。<br>
+            <strong>原因</strong>: undo/redo只需保存引用，无需深拷贝；避免引擎和叙事层同时修改同一对象导致竞态；状态快照天然可序列化。
+          </div>
+        </div>
+
+        <div style="background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px; margin-bottom:12px;">
+          <div style="color:#f59e0b; font-weight:bold; font-size:11px; margin-bottom:6px;">StateDiff 模式</div>
+          <div style="color:#94a3b8; font-size:11px; line-height:1.7;">
+            规则引擎不直接修改WorldState，而是输出一个StateDiff描述"要改什么"。StateManager.commit()负责应用。<br>
+            <strong>原因</strong>: 变更可审计（日志记录diff）；叙事层可读取diff来描述"发生了什么"；retry时丢弃diff即可。
+          </div>
+        </div>
+
+        <div style="background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px; margin-bottom:12px;">
+          <div style="color:#f59e0b; font-weight:bold; font-size:11px; margin-bottom:6px;">Undo/Redo 栈</div>
+          <div style="color:#94a3b8; font-size:11px; line-height:1.7;">
+            deque(maxlen=50) 限制内存。每次commit推旧状态入history。<br>
+            undo = history.pop → redo.push<br>
+            redo = redo.pop → history.push<br>
+            新commit清空redo栈。
+          </div>
+        </div>
+
+        <div style="background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px; margin-bottom:12px;">
+          <div style="color:#f59e0b; font-weight:bold; font-size:11px; margin-bottom:6px;">存档安全</div>
+          <div style="color:#94a3b8; font-size:11px; line-height:1.7;">
+            • Atomic write: 先写 .tmp 再 os.rename<br>
+            • Checksum: SHA256校验防止损坏<br>
+            • Version字段: 支持未来格式迁移<br>
+            • Auto-save: 每N回合或关键节点自动存档
+          </div>
+        </div>
+
+        <div style="background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px;">
+          <div style="color:#f59e0b; font-weight:bold; font-size:11px; margin-bottom:6px;">数据流</div>
+          <div style="color:#94a3b8; font-size:11px; line-height:1.7;">
+            <code>规则引擎</code> → 输出 StateDiff<br>
+            → <code>StateManager.commit(diff)</code><br>
+            → 返回新 WorldState<br>
+            → 新 WorldState 传给叙事层生成文本<br>
+            → 同时 diff 传给叙事层描述变化
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Memory System -->
+<div class="mockup" style="margin-top:24px;">
+  <div class="mockup-header">② 记忆系统 (world/memory.py)</div>
+  <div class="mockup-body" style="padding:20px; font-size:12px;">
+
+    <div style="display:flex; gap:16px; flex-wrap:wrap;">
+
+      <div style="flex:1; min-width:300px;">
+        <div style="color:#10b981; font-weight:bold; margin-bottom:10px;">类结构</div>
+        <div style="font-family:monospace; font-size:11px; color:#e2e8f0; line-height:1.8; background:#0f172a; padding:14px; border-radius:8px;">
+<pre style="margin:0;">
+<span style="color:#f59e0b;">class EventTimeline:</span>
+    <span style="color:#64748b;">"""线性事件时间线 — 记录所有已发生事件"""</span>
+    _events: list[Event]  <span style="color:#64748b;"># 按turn排序</span>
+
+    <span style="color:#10b981;">def append(self, event: Event) -> None:</span>
+        <span style="color:#64748b;">"""追加事件，自动按turn排序"""</span>
+
+    <span style="color:#10b981;">def recent(self, n: int = 5) -> list[Event]:</span>
+        <span style="color:#64748b;">"""获取最近n个事件，供Prompt注入"""</span>
+
+    <span style="color:#10b981;">def query(self, **filters) -> list[Event]:</span>
+        <span style="color:#64748b;">"""按条件过滤事件
+        filters: actor=, type=, after_turn=, contains=
+        例: query(actor="bartender", type="dialogue")
+        """</span>
+
+    <span style="color:#10b981;">def summarize(self, max_tokens: int = 200) -> str:</span>
+        <span style="color:#64748b;">"""生成事件摘要文本（供Prompt使用）
+        策略: 最近5条完整 + 更早的压缩为1句概述
+        用于控制Prompt长度
+        """</span>
+
+    <span style="color:#10b981;">def has(self, event_id: str) -> bool:</span>
+        <span style="color:#64748b;">"""检查某事件是否已发生
+        供剧情引擎的trigger条件使用
+        """</span>
+
+<span style="color:#f59e0b;">class RelationshipGraph:</span>
+    <span style="color:#64748b;">"""角色关系有向图"""</span>
+    _edges: dict[tuple[str,str], Relationship]
+
+    <span style="color:#10b981;">def get(self, src: str, tgt: str) -> Relationship | None:</span>
+        <span style="color:#64748b;">"""获取两个角色间的关系"""</span>
+
+    <span style="color:#10b981;">def update(self, delta: RelationshipDelta) -> Relationship:</span>
+        <span style="color:#64748b;">"""更新关系值（不可变 — 返回新Relationship）
+        delta: {source, target, type, change: +/-int}
+        自动clamp到[-100, 100]
+        如果关系不存在则创建（初始值=0+change）
+        """</span>
+
+    <span style="color:#10b981;">def get_all_for(self, char_id: str) -> list[Relationship]:</span>
+        <span style="color:#64748b;">"""获取某角色的所有关系
+        供NPC对话时参考态度
+        """</span>
+
+    <span style="color:#10b981;">def describe_for_prompt(self, char_id: str) -> str:</span>
+        <span style="color:#64748b;">"""生成角色关系描述文本
+        例: '格里姆对你态度冷淡(trust:-20)'
+        供叙事Prompt注入
+        """</span>
+
+<span style="color:#f59e0b;">class KnowledgeBase:</span>
+    <span style="color:#64748b;">"""角色知识库 — 记录每个角色"知道什么" """</span>
+    _knowledge: dict[str, frozenset[str]]
+
+    <span style="color:#10b981;">def knows(self, char_id: str, fact: str) -> bool:</span>
+        <span style="color:#64748b;">"""检查角色是否知道某个事实
+        供规则引擎限制NPC不泄露未知信息
+        """</span>
+
+    <span style="color:#10b981;">def teach(self, char_id: str, fact: str) -> None:</span>
+        <span style="color:#64748b;">"""让角色学会某个事实
+        不可变: 创建新frozenset替换旧的
+        """</span>
+
+    <span style="color:#10b981;">def facts_for_prompt(self, char_id: str) -> str:</span>
+        <span style="color:#64748b;">"""生成角色知识列表
+        供叙事Prompt约束NPC对话边界
+        """</span>
+
+<span style="color:#f59e0b;">class MemorySystem:</span>
+    <span style="color:#64748b;">"""统一入口 — 组合以上三个子系统"""</span>
+    timeline: EventTimeline
+    relationships: RelationshipGraph
+    knowledge: KnowledgeBase
+
+    <span style="color:#10b981;">def build_context(self, actor: str, max_tokens: int) -> MemoryContext:</span>
+        <span style="color:#64748b;">"""为Prompt构建完整记忆上下文
+        组合: 最近事件 + 相关关系 + 角色知识
+        控制总token数不超过max_tokens
+        优先级: 最近事件 > 直接关系 > 知识
+        返回MemoryContext(可直接嵌入Prompt)
+        """</span>
+
+    <span style="color:#10b981;">def apply_diff(self, diff: StateDiff) -> None:</span>
+        <span style="color:#64748b;">"""从StateDiff中提取记忆相关变更
+        - 追加new_events到timeline
+        - 应用relationship_changes到graph
+        - 提取knowledge变更到knowledge base
+        """</span>
+</pre>
+        </div>
+      </div>
+
+      <div style="flex:1; min-width:260px;">
+        <div style="color:#10b981; font-weight:bold; margin-bottom:10px;">设计决策</div>
+
+        <div style="background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px; margin-bottom:12px;">
+          <div style="color:#f59e0b; font-weight:bold; font-size:11px; margin-bottom:6px;">三子系统分离</div>
+          <div style="color:#94a3b8; font-size:11px; line-height:1.7;">
+            Timeline、RelationshipGraph、KnowledgeBase 各自独立，MemorySystem做组合。<br>
+            <strong>原因</strong>: 各自有不同的查询模式和数据结构；独立可测试；Prompt构建时按需取用。
+          </div>
+        </div>
+
+        <div style="background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px; margin-bottom:12px;">
+          <div style="color:#f59e0b; font-weight:bold; font-size:11px; margin-bottom:6px;">Prompt Token预算</div>
+          <div style="color:#94a3b8; font-size:11px; line-height:1.7;">
+            build_context() 接受 max_tokens 参数，按优先级填充：<br>
+            1. 最近5条事件（最重要）<br>
+            2. 与当前交互相关的关系<br>
+            3. 当前NPC的知识列表<br>
+            超出预算则截断低优先级部分。timeline.summarize()负责压缩早期事件。
+          </div>
+        </div>
+
+        <div style="background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px; margin-bottom:12px;">
+          <div style="color:#f59e0b; font-weight:bold; font-size:11px; margin-bottom:6px;">与StateManager的关系</div>
+          <div style="color:#94a3b8; font-size:11px; line-height:1.7;">
+            MemorySystem是WorldState的<strong>读视图</strong>。<br>
+            StateManager.commit() 后调用 MemorySystem.apply_diff() 同步。<br>
+            undo/load时，从新WorldState重建MemorySystem。
+          </div>
+        </div>
+
+        <div style="background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px;">
+          <div style="color:#f59e0b; font-weight:bold; font-size:11px; margin-bottom:6px;">序列化</div>
+          <div style="color:#94a3b8; font-size:11px; line-height:1.7;">
+            MemorySystem自身不持久化。所有数据来源于WorldState。<br>
+            存档 = WorldState序列化（含timeline、relationships）。<br>
+            加载 = 反序列化WorldState → 重建MemorySystem。<br>
+            <strong>单一数据源</strong>，避免不一致。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LLM Adapter -->
+<div class="mockup" style="margin-top:24px;">
+  <div class="mockup-header">③ LLM适配器 (llm/adapter.py)</div>
+  <div class="mockup-body" style="padding:20px; font-size:12px;">
+
+    <div style="display:flex; gap:16px; flex-wrap:wrap;">
+
+      <div style="flex:1; min-width:300px;">
+        <div style="color:#818cf8; font-weight:bold; margin-bottom:10px;">类结构</div>
+        <div style="font-family:monospace; font-size:11px; color:#e2e8f0; line-height:1.8; background:#0f172a; padding:14px; border-radius:8px;">
+<pre style="margin:0;">
+<span style="color:#f59e0b;">class LLMConfig</span>(BaseModel):
+    provider: str          <span style="color:#64748b;"># "openai" | "anthropic" | "ollama"</span>
+    model: str             <span style="color:#64748b;"># "gpt-4o-mini"</span>
+    temperature: float     <span style="color:#64748b;"># 0.0 ~ 1.0</span>
+    max_tokens: int
+    base_url: str | None   <span style="color:#64748b;"># Ollama自定义endpoint</span>
+    api_key: str | None    <span style="color:#64748b;"># 从环境变量读取</span>
+    timeout: float = 30.0
+    max_retries: int = 3
+
+<span style="color:#f59e0b;">class LLMAdapter</span>(Protocol):
+    <span style="color:#64748b;">"""所有后端必须实现此协议"""</span>
+
+    <span style="color:#10b981;">async def complete(</span>
+        self,
+        messages: list[Message],
+        response_format: type[T] | None = None,
+    <span style="color:#10b981;">) -> T | str:</span>
+        <span style="color:#64748b;">"""通用补全
+        response_format不为None时，返回Structured Output
+        (Pydantic model实例)
+        为None时，返回纯文本str
+        """</span>
+
+    <span style="color:#10b981;">async def stream(</span>
+        self,
+        messages: list[Message],
+    <span style="color:#10b981;">) -> AsyncIterator[str]:</span>
+        <span style="color:#64748b;">"""流式输出，yield每个文本chunk"""</span>
+
+<span style="color:#f59e0b;">class OpenAIAdapter</span>(LLMAdapter):
+    <span style="color:#64748b;">"""OpenAI实现"""</span>
+    def __init__(self, config: LLMConfig):
+        self._client = AsyncOpenAI(
+            api_key=config.api_key,
+            timeout=config.timeout,
+        )
+
+    async def complete(self, messages, response_format=None):
+        <span style="color:#64748b;">"""
+        response_format → openai的response_format参数
+        使用Pydantic model → JSON Schema自动转换
+        内置重试: tenacity, 指数退避, max_retries次
+        """</span>
+
+    async def stream(self, messages):
+        <span style="color:#64748b;">"""
+        使用openai stream=True
+        async for chunk in response:
+            yield chunk.choices[0].delta.content
+        """</span>
+
+<span style="color:#f59e0b;">class AnthropicAdapter</span>(LLMAdapter):
+    <span style="color:#64748b;">"""Anthropic实现 (P4)
+    system message → system参数
+    response_format → tool_use模式模拟Structured Output
+    stream → async message streaming
+    """</span>
+
+<span style="color:#f59e0b;">class OllamaAdapter</span>(LLMAdapter):
+    <span style="color:#64748b;">"""Ollama实现 (P4)
+    使用httpx直连本地API
+    response_format → JSON mode
+    stream → Server-Sent Events
+    """</span>
+
+<span style="color:#f59e0b;">class LLMRegistry:</span>
+    <span style="color:#64748b;">"""适配器工厂与注册中心"""</span>
+    _adapters: dict[str, type[LLMAdapter]] = {
+        "openai": OpenAIAdapter,
+        "anthropic": AnthropicAdapter,
+        "ollama": OllamaAdapter,
+    }
+
+    <span style="color:#10b981;">def create(self, config: LLMConfig) -> LLMAdapter:</span>
+        <span style="color:#64748b;">"""根据config.provider创建适配器实例"""</span>
+
+<span style="color:#f59e0b;">class LLMService:</span>
+    <span style="color:#64748b;">"""业务层 — 组合两个适配器实例"""</span>
+    _intent_llm: LLMAdapter    <span style="color:#64748b;"># 轻量模型</span>
+    _narrative_llm: LLMAdapter <span style="color:#64748b;"># 强模型</span>
+
+    <span style="color:#10b981;">async def classify_intent(</span>
+        self, input: str, context: SceneContext
+    <span style="color:#10b981;">) -> ActionRequest:</span>
+        <span style="color:#64748b;">"""
+        1. 构建意图分类messages (few-shot + 场景实体)
+        2. _intent_llm.complete(messages,
+             response_format=ActionRequest)
+        3. 返回Pydantic ActionRequest实例
+        """</span>
+
+    <span style="color:#10b981;">async def generate_narrative(</span>
+        self, action: ActionResult,
+        state: WorldState, memory: MemoryContext
+    <span style="color:#10b981;">) -> str:</span>
+        <span style="color:#64748b;">"""
+        1. 用prompts.py构建叙事messages
+        2. _narrative_llm.complete(messages)
+        3. 返回叙事文本
+        """</span>
+
+    <span style="color:#10b981;">async def stream_narrative(</span>
+        self, action: ActionResult,
+        state: WorldState, memory: MemoryContext
+    <span style="color:#10b981;">) -> AsyncIterator[str]:</span>
+        <span style="color:#64748b;">"""
+        同上但用_narrative_llm.stream()
+        Rich渲染层消费iterator实现打字机效果
+        """</span>
+</pre>
+        </div>
+      </div>
+
+      <div style="flex:1; min-width:260px;">
+        <div style="color:#818cf8; font-weight:bold; margin-bottom:10px;">设计决策</div>
+
+        <div style="background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px; margin-bottom:12px;">
+          <div style="color:#f59e0b; font-weight:bold; font-size:11px; margin-bottom:6px;">Protocol而非ABC</div>
+          <div style="color:#94a3b8; font-size:11px; line-height:1.7;">
+            使用Python Protocol（结构化子类型），不要求继承。<br>
+            <strong>原因</strong>: 第三方可直接实现接口而无需导入基类；更Pythonic；利于测试时创建mock。
+          </div>
+        </div>
+
+        <div style="background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px; margin-bottom:12px;">
+          <div style="color:#f59e0b; font-weight:bold; font-size:11px; margin-bottom:6px;">complete() + Structured Output</div>
+          <div style="color:#94a3b8; font-size:11px; line-height:1.7;">
+            single complete()方法同时处理纯文本和JSON模式。<br>
+            传入response_format（Pydantic model类型）时，自动启用Structured Output返回类型安全的实例。<br>
+            <strong>意图分类</strong>: complete(msgs, ActionRequest) → ActionRequest实例<br>
+            <strong>叙事生成</strong>: complete(msgs) → str
+          </div>
+        </div>
+
+        <div style="background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px; margin-bottom:12px;">
+          <div style="color:#f59e0b; font-weight:bold; font-size:11px; margin-bottom:6px;">双实例架构 (LLMService)</div>
+          <div style="color:#94a3b8; font-size:11px; line-height:1.7;">
+            LLMService持有两个LLMAdapter实例:<br>
+            • <code>_intent_llm</code>: 轻量快速（mini/haiku）<br>
+            • <code>_narrative_llm</code>: 高质量（4o/sonnet）<br>
+            <strong>原因</strong>: 意图分类要求低延迟+确定性，叙事要求创造力+质量，两者需求矛盾，分开配置最优。
+          </div>
+        </div>
+
+        <div style="background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px; margin-bottom:12px;">
+          <div style="color:#f59e0b; font-weight:bold; font-size:11px; margin-bottom:6px;">错误处理与重试</div>
+          <div style="color:#94a3b8; font-size:11px; line-height:1.7;">
+            • 网络错误: tenacity指数退避重试（max 3次）<br>
+            • Rate limit: 自动等待 retry-after<br>
+            • JSON解析失败: 重试1次，仍失败则返回CUSTOM动作<br>
+            • 超时: 配置化timeout，默认30s<br>
+            • 所有错误包装为 <code>LLMError</code> 自定义异常
+          </div>
+        </div>
+
+        <div style="background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px;">
+          <div style="color:#f59e0b; font-weight:bold; font-size:11px; margin-bottom:6px;">配置热加载</div>
+          <div style="color:#94a3b8; font-size:11px; line-height:1.7;">
+            config.yaml变更时，LLMRegistry重新创建适配器实例。<br>
+            利用watchdog监听文件变更，或通过游戏内 <code>reload</code> 命令手动触发。<br>
+            无需重启游戏即可切换模型。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Config Example -->
+<div class="mockup" style="margin-top:24px;">
+  <div class="mockup-header">完整配置示例 (config.yaml)</div>
+  <div class="mockup-body" style="padding:16px; font-family:monospace; font-size:11px; line-height:1.7;">
+<pre style="margin:0; color:#e2e8f0;">
+<span style="color:#4a9eff;">llm:</span>
+  <span style="color:#10b981;">intent:</span>
+    provider: openai
+    model: gpt-4o-mini
+    temperature: 0.1        <span style="color:#64748b;"># 低温度 → 确定性分类</span>
+    max_tokens: 200          <span style="color:#64748b;"># 意图JSON很短</span>
+    max_retries: 3
+    timeout: 10.0            <span style="color:#64748b;"># 快速失败</span>
+
+  <span style="color:#f59e0b;">narrative:</span>
+    provider: anthropic
+    model: claude-sonnet-4-6
+    temperature: 0.8         <span style="color:#64748b;"># 高温度 → 创意叙事</span>
+    max_tokens: 500
+    max_retries: 2
+    timeout: 30.0
+    stream: true             <span style="color:#64748b;"># 打字机效果</span>
+
+<span style="color:#4a9eff;">game:</span>
+  auto_save_interval: 5      <span style="color:#64748b;"># 每5回合自动存档</span>
+  undo_history_size: 50
+  save_dir: ./saves
+
+<span style="color:#4a9eff;">debug:</span>
+  show_intent_json: false    <span style="color:#64748b;"># 调试时显示意图解析结果</span>
+  show_prompt: false         <span style="color:#64748b;"># 调试时显示完整Prompt</span>
+  log_level: INFO
+</pre>
+  </div>
+</div>

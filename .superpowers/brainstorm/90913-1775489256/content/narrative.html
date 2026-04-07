@@ -1,0 +1,213 @@
+<h2>剧情控制与叙事策略</h2>
+<p class="subtitle">主线+支线+动态生成 三层叙事结构 — 以奇幻酒馆为例</p>
+
+<div class="mockup">
+  <div class="mockup-header">三层叙事结构</div>
+  <div class="mockup-body" style="padding:24px; font-size:12px;">
+
+    <!-- Three layers -->
+    <div style="display:flex; gap:16px; flex-wrap:wrap; justify-content:center;">
+
+      <!-- Main Quest -->
+      <div style="flex:1; min-width:220px; border:2px solid #ef4444; border-radius:10px; overflow:hidden;">
+        <div style="background:#ef4444; color:#fff; padding:8px 14px; font-weight:bold; font-size:13px;">
+          🔴 主线剧情 — 设计者预设
+        </div>
+        <div style="padding:14px; color:#e2e8f0; line-height:1.7;">
+          <div style="font-size:11px; color:#94a3b8; margin-bottom:8px;">不可跳过的关键节点，因果链驱动</div>
+          <div style="font-family:monospace; font-size:11px; line-height:2;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="background:#991b1b; color:#fff; border-radius:50%; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; font-size:10px;">1</span>
+              <span>进入酒馆，遇到格里姆</span>
+            </div>
+            <div style="color:#475569; padding-left:10px;">↓</div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="background:#991b1b; color:#fff; border-radius:50%; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; font-size:10px;">2</span>
+              <span>获取地下室线索</span>
+            </div>
+            <div style="color:#475569; padding-left:10px;">↓</div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="background:#991b1b; color:#fff; border-radius:50%; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; font-size:10px;">3</span>
+              <span>找到钥匙，打开地下室</span>
+            </div>
+            <div style="color:#475569; padding-left:10px;">↓</div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="background:#991b1b; color:#fff; border-radius:50%; width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center; font-size:10px;">4</span>
+              <span>发现密道秘密</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Side Quests -->
+      <div style="flex:1; min-width:220px; border:2px solid #f59e0b; border-radius:10px; overflow:hidden;">
+        <div style="background:#f59e0b; color:#000; padding:8px 14px; font-weight:bold; font-size:13px;">
+          🟡 支线故事 — 条件触发
+        </div>
+        <div style="padding:14px; color:#e2e8f0; line-height:1.7;">
+          <div style="font-size:11px; color:#94a3b8; margin-bottom:8px;">丰富世界，可选但有奖励</div>
+          <div style="font-size:11px; line-height:2;">
+            <div style="padding:6px 8px; background:#1e293b; border-radius:4px; margin-bottom:6px;">
+              <span style="color:#f59e0b;">帮助旅行者</span><br>
+              <span style="color:#64748b;">触发: 与大厅旅行者对话</span><br>
+              <span style="color:#64748b;">奖励: 获得地图碎片</span>
+            </div>
+            <div style="padding:6px 8px; background:#1e293b; border-radius:4px; margin-bottom:6px;">
+              <span style="color:#f59e0b;">神秘旅客的委托</span><br>
+              <span style="color:#64748b;">触发: 进入客房走廊</span><br>
+              <span style="color:#64748b;">奖励: 解锁隐藏结局</span>
+            </div>
+            <div style="padding:6px 8px; background:#1e293b; border-radius:4px;">
+              <span style="color:#f59e0b;">后院的废弃马车</span><br>
+              <span style="color:#64748b;">触发: 搜索后院</span><br>
+              <span style="color:#64748b;">奖励: 备用钥匙(主线捷径)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dynamic Content -->
+      <div style="flex:1; min-width:220px; border:2px solid #10b981; border-radius:10px; overflow:hidden;">
+        <div style="background:#10b981; color:#000; padding:8px 14px; font-weight:bold; font-size:13px;">
+          🟢 动态生成 — LLM实时创作
+        </div>
+        <div style="padding:14px; color:#e2e8f0; line-height:1.7;">
+          <div style="font-size:11px; color:#94a3b8; margin-bottom:8px;">细节填充，每次不同的体验</div>
+          <div style="font-size:11px; line-height:2;">
+            <div style="padding:6px 8px; background:#1e293b; border-radius:4px; margin-bottom:6px;">
+              <span style="color:#10b981;">NPC对话</span><br>
+              <span style="color:#64748b;">基于关系值+知识+性格动态生成</span>
+            </div>
+            <div style="padding:6px 8px; background:#1e293b; border-radius:4px; margin-bottom:6px;">
+              <span style="color:#10b981;">环境描写</span><br>
+              <span style="color:#64748b;">根据时间/天气/事件状态变化</span>
+            </div>
+            <div style="padding:6px 8px; background:#1e293b; border-radius:4px; margin-bottom:6px;">
+              <span style="color:#10b981;">随机事件</span><br>
+              <span style="color:#64748b;">酒馆打架、新旅客到来等</span>
+            </div>
+            <div style="padding:6px 8px; background:#1e293b; border-radius:4px;">
+              <span style="color:#10b981;">失败叙事</span><br>
+              <span style="color:#64748b;">玩家失败时生成替代剧情</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Story Node Definition -->
+<div class="mockup" style="margin-top:24px;">
+  <div class="mockup-header">剧情节点定义格式 (YAML)</div>
+  <div class="mockup-body" style="padding:16px; font-family:monospace; font-size:11px; line-height:1.7;">
+<pre style="margin:0; color:#e2e8f0;">
+<span style="color:#f59e0b;">story_nodes:</span>
+  - id: "enter_tavern"
+    type: main
+    description: "玩家首次进入酒馆"
+    <span style="color:#10b981;">trigger:</span>
+      condition: "player.location == 'tavern_hall' AND NOT events.contains('entered_tavern')"
+    <span style="color:#4a9eff;">effects:</span>
+      - add_event: "entered_tavern"
+      - set_npc_state: {id: "bartender_grim", mood: "cautious"}
+    <span style="color:#818cf8;">narrator_hint:</span> "描写昏暗酒馆的氛围，格里姆的第一印象"
+    next_nodes: ["get_cellar_clue"]
+
+  - id: "get_cellar_clue"
+    type: main
+    description: "获取地下室线索"
+    <span style="color:#10b981;">trigger:</span>
+      <span style="color:#ef4444;">any_of:</span>                          <span style="color:#888;"># 多路径触发</span>
+        - "player.talked_to('bartender_grim') AND bartender_grim.trust >= 20"
+        - "player.has_item('torn_notice') AND player.used('torn_notice')"
+        - "player.searched('tavern_bar') >= 3"   <span style="color:#888;"># 搜索3次也能发现</span>
+    effects:
+      - add_knowledge: {target: "player", fact: "地下室有密道"}
+      - add_event: "cellar_clue_found"
+    narrator_hint: "揭示地下室存在秘密的线索，保持悬念"
+    <span style="color:#ef4444;">fail_forward:</span>                       <span style="color:#888;"># 失败推进机制</span>
+      after_turns: 20                  <span style="color:#888;"># 20回合未触发则自动推进</span>
+      fallback_event: "mysterious_noise_from_cellar"
+      narrator_hint: "地下室传来奇怪声响，引起玩家注意"
+</pre>
+  </div>
+</div>
+
+<!-- Narrative Control Mechanisms -->
+<div class="section" style="margin-top:24px;">
+  <h3>叙事控制机制</h3>
+  <div style="display:flex; gap:12px; flex-wrap:wrap;">
+
+    <div style="flex:1; min-width:220px; background:#1e293b; border:1px solid #ef4444; border-radius:8px; padding:14px;">
+      <div style="color:#ef4444; font-weight:bold; font-size:13px; margin-bottom:8px;">硬性约束</div>
+      <div style="color:#94a3b8; font-size:11px; line-height:1.8;">
+        • 世界物理规则不可违反<br>
+        • 主线节点必须按因果链推进<br>
+        • 锁定条件未满足时拒绝操作<br>
+        • NPC知识边界（不知道的不说）<br>
+        • 死亡/重大失败触发存档回滚
+      </div>
+    </div>
+
+    <div style="flex:1; min-width:220px; background:#1e293b; border:1px solid #f59e0b; border-radius:8px; padding:14px;">
+      <div style="color:#f59e0b; font-weight:bold; font-size:13px; margin-bottom:8px;">软性引导</div>
+      <div style="color:#94a3b8; font-size:11px; line-height:1.8;">
+        • NPC对话中暗示下一步方向<br>
+        • 环境描写突出关键物品/线索<br>
+        • hint 命令提供非强制建议<br>
+        • 长时间无进展触发过渡事件<br>
+        • 失败后给出替代路径（Fail Forward）
+      </div>
+    </div>
+
+    <div style="flex:1; min-width:220px; background:#1e293b; border:1px solid #10b981; border-radius:8px; padding:14px;">
+      <div style="color:#10b981; font-weight:bold; font-size:13px; margin-bottom:8px;">连贯性保障</div>
+      <div style="color:#94a3b8; font-size:11px; line-height:1.8;">
+        • 事件时间线供LLM参考<br>
+        • NPC记住与玩家的交互历史<br>
+        • 伏笔在后续场景中被回收<br>
+        • 变量填充（角色名/物品名）<br>
+        • Prompt注入世界状态摘要
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- LLM Narrative Prompt Structure -->
+<div class="mockup" style="margin-top:24px;">
+  <div class="mockup-header">叙事生成 Prompt 结构</div>
+  <div class="mockup-body" style="padding:16px; font-family:monospace; font-size:11px; line-height:1.7;">
+<pre style="margin:0; color:#e2e8f0;">
+<span style="color:#4a9eff;">[System]</span>
+你是一个奇幻世界的叙事引擎。用第二人称、沉浸式风格描写场景。
+保持与已发生事件的一致性。不要透露玩家未知的信息。
+
+<span style="color:#f59e0b;">[World State Summary]</span>
+地点: 酒馆吧台 | 时间: 夜晚 | 氛围: 昏暗紧张
+NPC在场: 格里姆(trust:-20, mood:suspicious)
+玩家背包: 提灯, 纸条 | HP: 10
+
+<span style="color:#10b981;">[Recent Timeline]</span>
+- 回合12: 玩家在客房发现了一张神秘纸条
+- 回合13: 玩家回到吧台
+- 回合14: 玩家试图询问格里姆关于纸条的事，被冷淡回绝
+
+<span style="color:#818cf8;">[Story Node Hint]</span>
+当前主线: "get_cellar_clue" — 引导玩家发现地下室秘密
+narrator_hint: "揭示地下室存在秘密的线索，保持悬念"
+
+<span style="color:#ef4444;">[Action]</span>
+玩家动作: TALK → bartender_grim, detail: "再次询问地下室"
+规则结果: 允许对话，但trust低，格里姆会回避
+
+<span style="color:#64748b;">[Output Requirements]</span>
+- 150字以内
+- 包含格里姆的对话和肢体语言
+- 暗示地下室确有秘密但不直说
+- 留下让玩家继续探索的钩子
+</pre>
+  </div>
+</div>

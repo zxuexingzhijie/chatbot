@@ -1,0 +1,204 @@
+<h2>交互机制与CLI界面设计（修订）</h2>
+<p class="subtitle">Rich美化流式界面 + 命令体系 + LLM统一意图解析</p>
+
+<div class="split">
+  <div class="mockup" style="flex:1.2;">
+    <div class="mockup-header">CLI 界面布局</div>
+    <div class="mockup-body" style="padding:0; font-family:monospace; font-size:12px; line-height:1.5; background:#1a1a2e;">
+
+      <!-- Status Bar -->
+      <div style="background:#16213e; padding:6px 12px; display:flex; justify-content:space-between; color:#a8b2d1; font-size:11px; border-bottom:1px solid #333;">
+        <span>📍 酒馆吧台</span>
+        <span>❤️ HP:10 | 💰 Gold:5 | 🎒 背包:3件</span>
+        <span>回合 #15</span>
+      </div>
+
+      <!-- Narrative Area -->
+      <div style="padding:12px 16px; color:#e2e8f0; min-height:180px;">
+        <div style="color:#f59e0b; font-weight:bold; margin-bottom:8px;">═══ 酒馆吧台 ═══</div>
+        <div style="color:#94a3b8; margin-bottom:12px;">
+          昏暗的烛光在吧台上投下摇曳的影子。格里姆老头正用一块脏兮兮的抹布擦拭着酒杯，他的眼神警惕地扫过你。
+        </div>
+        <div style="color:#10b981; margin-bottom:6px;">
+          格里姆抬起头，浑浊的眼睛盯着你：<span style="color:#6ee7b7;">"又是一个不安分的旅客。想喝点什么，还是想找麻烦？"</span>
+        </div>
+        <div style="color:#64748b; font-size:11px; margin-top:12px;">
+          [ 吧台上放着一张<span style="color:#f59e0b;">破旧告示</span> | 角落里有通往<span style="color:#818cf8;">地下室的门</span>(锁着) ]
+        </div>
+      </div>
+
+      <!-- Separator -->
+      <div style="border-top:1px solid #333; padding:4px 12px; color:#475569; font-size:10px;">
+        提示: 输入 help 查看命令 | continue 自动推进 | save 存档
+      </div>
+
+      <!-- Input Area -->
+      <div style="background:#0f172a; padding:8px 12px; display:flex; align-items:center; gap:8px;">
+        <span style="color:#4a9eff; font-weight:bold;">▸</span>
+        <span style="color:#e2e8f0;">和格里姆聊聊地下室的事</span>
+        <span style="color:#475569;">▊</span>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="mockup" style="flex:0.8;">
+    <div class="mockup-header">系统命令一览</div>
+    <div class="mockup-body" style="padding:16px; font-size:12px;">
+      <div style="margin-bottom:12px;">
+        <div style="color:#f59e0b; font-weight:bold; margin-bottom:4px;">游戏控制</div>
+        <div style="color:#94a3b8; font-size:11px; line-height:1.8;">
+          <code style="color:#4a9eff;">continue</code> — 剧情自动推进<br>
+          <code style="color:#4a9eff;">undo</code> — 回退上一步<br>
+          <code style="color:#4a9eff;">retry</code> — 重新生成本轮<br>
+          <code style="color:#4a9eff;">save [名称]</code> — 存档<br>
+          <code style="color:#4a9eff;">load [名称]</code> — 读档<br>
+        </div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <div style="color:#10b981; font-weight:bold; margin-bottom:4px;">信息查询</div>
+        <div style="color:#94a3b8; font-size:11px; line-height:1.8;">
+          <code style="color:#4a9eff;">look</code> — 查看环境<br>
+          <code style="color:#4a9eff;">inventory</code> — 查看背包<br>
+          <code style="color:#4a9eff;">status</code> — 角色状态<br>
+          <code style="color:#4a9eff;">hint</code> — 获取提示<br>
+          <code style="color:#4a9eff;">help</code> — 命令帮助<br>
+        </div>
+      </div>
+      <div>
+        <div style="color:#818cf8; font-weight:bold; margin-bottom:4px;">自由输入</div>
+        <div style="color:#94a3b8; font-size:11px; line-height:1.8;">
+          直接用自然语言描述行动<br>
+          <span style="color:#64748b;">例: "翻看吧台上的告示"</span><br>
+          <span style="color:#64748b;">例: "偷偷溜到地下室门口"</span><br>
+          <span style="color:#64748b;">例: "给格里姆讲个笑话"</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Intent Parsing Pipeline - LLM Only -->
+<div class="mockup" style="margin-top:24px;">
+  <div class="mockup-header">意图解析流程 — LLM统一解析</div>
+  <div class="mockup-body" style="padding:20px; font-size:12px;">
+    <div style="display:flex; gap:8px; align-items:stretch; flex-wrap:wrap; justify-content:center;">
+
+      <div style="background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px; min-width:140px; text-align:center;">
+        <div style="color:#4a9eff; font-weight:bold; margin-bottom:6px;">玩家输入</div>
+        <div style="color:#94a3b8; font-size:11px;">"和格里姆聊聊<br>地下室的事"</div>
+      </div>
+
+      <div style="display:flex; align-items:center; color:#475569;">→</div>
+
+      <div style="background:#1e293b; border:1px solid #f59e0b; border-radius:8px; padding:12px; min-width:180px; text-align:center;">
+        <div style="color:#f59e0b; font-weight:bold; margin-bottom:6px;">LLM 意图分类</div>
+        <div style="color:#94a3b8; font-size:11px;">
+          Structured Output (JSON)<br>
+          few-shot prompt 引导<br>
+          从预设动作类型中选择<br>
+          提取 target + detail
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; color:#475569;">→</div>
+
+      <div style="background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px; min-width:160px; text-align:center;">
+        <div style="color:#10b981; font-weight:bold; margin-bottom:6px;">ActionRequest</div>
+        <div style="font-family:monospace; font-size:10px; color:#94a3b8; text-align:left;">
+          action: TALK<br>
+          target: "bartender_grim"<br>
+          detail: "地下室的事"<br>
+          raw: "和格里姆聊..."
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; color:#475569;">→</div>
+
+      <div style="background:#1e293b; border:1px solid #ef4444; border-radius:8px; padding:12px; min-width:160px; text-align:center;">
+        <div style="color:#ef4444; font-weight:bold; margin-bottom:6px;">规则验证</div>
+        <div style="color:#94a3b8; font-size:11px;">
+          ✓ 格里姆在同一地点<br>
+          ✓ 格里姆非敌对状态<br>
+          ⚠ trust=-20, 态度冷淡
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; color:#475569;">→</div>
+
+      <div style="background:#1e293b; border:1px solid #10b981; border-radius:8px; padding:12px; min-width:140px; text-align:center;">
+        <div style="color:#10b981; font-weight:bold; margin-bottom:6px;">LLM叙事生成</div>
+        <div style="color:#94a3b8; font-size:11px;">
+          基于trust=-20<br>
+          生成冷淡/回避<br>
+          的对话回应
+        </div>
+      </div>
+
+    </div>
+
+    <!-- LLM Intent Prompt Example -->
+    <div style="margin-top:16px; padding:12px 16px; background:#1e293b; border:1px solid #f59e0b; border-radius:8px;">
+      <div style="color:#f59e0b; font-size:11px; font-weight:bold; margin-bottom:6px;">📋 意图分类 Prompt 示例</div>
+      <div style="font-family:monospace; font-size:11px; color:#94a3b8; line-height:1.7;">
+        <div style="color:#64748b;"># System</div>
+        你是一个游戏意图解析器。根据玩家输入，返回JSON格式的动作分类。<br>
+        可用动作: MOVE, LOOK, SEARCH, TALK, PERSUADE, TRADE, TAKE, USE, GIVE, STEALTH, COMBAT, CUSTOM<br>
+        当前场景中的实体: bartender_grim(NPC), notice_board(物品), cellar_door(出口,锁定)<br><br>
+        <div style="color:#64748b;"># User</div>
+        "和格里姆聊聊地下室的事"<br><br>
+        <div style="color:#64748b;"># Expected Output</div>
+        <span style="color:#10b981;">{"action": "TALK", "target": "bartender_grim", "detail": "询问地下室", "confidence": 0.95}</span>
+      </div>
+    </div>
+
+    <!-- Cost optimization note -->
+    <div style="margin-top:12px; padding:10px 16px; background:#1e293b; border:1px dashed #818cf8; border-radius:8px;">
+      <div style="color:#818cf8; font-size:11px; font-weight:bold;">💡 成本优化策略</div>
+      <div style="color:#94a3b8; font-size:11px; margin-top:4px;">
+        意图分类使用<strong>轻量模型</strong>（GPT-4o-mini / Haiku）降低成本和延迟<br>
+        叙事生成使用<strong>强模型</strong>（GPT-4o / Sonnet）保证文本质量<br>
+        两次LLM调用可<strong>并行优化</strong>：意图分类返回后立即触发叙事生成
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Action Types -->
+<div class="section" style="margin-top:24px;">
+  <h3>动作类型体系</h3>
+  <div style="display:flex; gap:12px; flex-wrap:wrap;">
+    <div style="flex:1; min-width:200px; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px;">
+      <div style="color:#4a9eff; font-weight:bold; font-size:13px; margin-bottom:8px;">移动类</div>
+      <div style="color:#94a3b8; font-size:11px; line-height:1.8;">
+        <code>MOVE</code> — 移动到相邻地点<br>
+        <code>LOOK</code> — 观察环境/物品<br>
+        <code>SEARCH</code> — 搜索隐藏物品
+      </div>
+    </div>
+    <div style="flex:1; min-width:200px; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px;">
+      <div style="color:#10b981; font-weight:bold; font-size:13px; margin-bottom:8px;">交互类</div>
+      <div style="color:#94a3b8; font-size:11px; line-height:1.8;">
+        <code>TALK</code> — 与NPC对话<br>
+        <code>PERSUADE</code> — 说服/交涉<br>
+        <code>TRADE</code> — 交易物品
+      </div>
+    </div>
+    <div style="flex:1; min-width:200px; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px;">
+      <div style="color:#f59e0b; font-weight:bold; font-size:13px; margin-bottom:8px;">物品类</div>
+      <div style="color:#94a3b8; font-size:11px; line-height:1.8;">
+        <code>TAKE</code> — 拾取物品<br>
+        <code>USE</code> — 使用物品<br>
+        <code>GIVE</code> — 给予NPC物品
+      </div>
+    </div>
+    <div style="flex:1; min-width:200px; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px;">
+      <div style="color:#ef4444; font-weight:bold; font-size:13px; margin-bottom:8px;">特殊类</div>
+      <div style="color:#94a3b8; font-size:11px; line-height:1.8;">
+        <code>STEALTH</code> — 潜行/偷窃<br>
+        <code>COMBAT</code> — 战斗(MVP后期)<br>
+        <code>CUSTOM</code> — LLM无法映射时的兜底
+      </div>
+    </div>
+  </div>
+</div>

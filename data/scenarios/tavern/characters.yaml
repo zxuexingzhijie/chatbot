@@ -1,0 +1,47 @@
+player:
+  id: player
+  name: 冒险者
+  role: player
+  traits:
+    - 勇敢
+    - 好奇
+  stats:
+    hp: 100
+    gold: 10
+  inventory: []
+  location_id: tavern_hall
+
+npcs:
+  traveler:
+    name: 旅行者艾琳
+    traits:
+      - 友善
+      - 健谈
+      - 风尘仆仆
+    stats:
+      trust: 10
+    inventory: []
+    location_id: tavern_hall
+
+  bartender_grim:
+    name: 酒保格里姆
+    traits:
+      - 沉默寡言
+      - 警觉
+      - 粗犷
+    stats:
+      trust: 0
+    inventory:
+      - cellar_key
+    location_id: bar_area
+
+  mysterious_guest:
+    name: 神秘旅客
+    traits:
+      - 神秘
+      - 冷淡
+      - 戴兜帽
+    stats:
+      trust: -10
+    inventory: []
+    location_id: corridor

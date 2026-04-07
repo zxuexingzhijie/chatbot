@@ -1,0 +1,115 @@
+import pytest
+
+from tavern.engine.actions import ActionType
+from tavern.world.models import ActionResult, Event
+from tavern.world.state import StateDiff, StateManager, WorldState
+
+
+class TestWorldState:
+    def test_is_frozen(self, sample_world_state):
+        with pytest.raises(Exception):
+            sample_world_state.turn = 99
+
+    def test_apply_diff_increments_turn(self, sample_world_state):
+        diff = StateDiff(turn_increment=1)
+        new_state = sample_world_state.apply(diff)
+        assert new_state.turn == 1
+        assert sample_world_state.turn == 0
+
+    def test_apply_diff_updates_character(self, sample_world_state):
+        diff = StateDiff(
+            updated_characters={"player": {"location_id": "bar_area"}}
+        )
+        new_state = sample_world_state.apply(diff)
+        assert new_state.characters["player"].location_id == "bar_area"
+        assert sample_world_state.characters["player"].location_id == "tavern_hall"
+
+    def test_apply_diff_removes_item_from_location(self, sample_world_state):
+        diff = StateDiff(updated_locations={"tavern_hall": {"items": ()}})
+        new_state = sample_world_state.apply(diff)
+        assert "old_notice" not in new_state.locations["tavern_hall"].items
+
+    def test_apply_diff_adds_item_to_inventory(self, sample_world_state):
+        diff = StateDiff(
+            updated_characters={"player": {"inventory": ("old_notice",)}}
+        )
+        new_state = sample_world_state.apply(diff)
+        assert "old_notice" in new_state.characters["player"].inventory
+
+    def test_apply_diff_adds_event(self, sample_world_state):
+        event = Event(
+            id="evt_1",
+            turn=1,
+            type="move",
+            actor="player",
+            description="玩家移动到吧台区",
+        )
+        diff = StateDiff(new_events=(event,))
+        new_state = sample_world_state.apply(diff)
+        assert len(new_state.timeline) == 1
+        assert new_state.timeline[0].id == "evt_1"
+
+
+class TestStateManager:
+    def test_current_returns_initial(self, sample_state_manager, sample_world_state):
+        assert sample_state_manager.current.turn == sample_world_state.turn
+
+    def test_commit_advances_state(self, sample_state_manager):
+        diff = StateDiff(turn_increment=1)
+        action = ActionResult(
+            success=True, action=ActionType.LOOK, message="你环顾四周。"
+        )
+        new_state = sample_state_manager.commit(diff, action)
+        assert new_state.turn == 1
+        assert sample_state_manager.current.turn == 1
+
+    def test_commit_stores_last_action(self, sample_state_manager):
+        diff = StateDiff(turn_increment=1)
+        action = ActionResult(
+            success=True, action=ActionType.LOOK, message="你环顾四周。"
+        )
+        sample_state_manager.commit(diff, action)
+        assert sample_state_manager.current.last_action == action
+
+    def test_undo_restores_previous(self, sample_state_manager):
+        diff = StateDiff(turn_increment=1)
+        action = ActionResult(
+            success=True, action=ActionType.LOOK, message="看"
+        )
+        sample_state_manager.commit(diff, action)
+        assert sample_state_manager.current.turn == 1
+        restored = sample_state_manager.undo()
+        assert restored.turn == 0
+
+    def test_undo_on_empty_history_raises(self, sample_state_manager):
+        with pytest.raises(IndexError):
+            sample_state_manager.undo()
+
+    def test_redo_after_undo(self, sample_state_manager):
+        diff = StateDiff(turn_increment=1)
+        action = ActionResult(
+            success=True, action=ActionType.LOOK, message="看"
+        )
+        sample_state_manager.commit(diff, action)
+        sample_state_manager.undo()
+        redone = sample_state_manager.redo()
+        assert redone.turn == 1
+
+    def test_redo_on_empty_raises(self, sample_state_manager):
+        with pytest.raises(IndexError):
+            sample_state_manager.redo()
+
+    def test_commit_clears_redo_stack(self, sample_state_manager):
+        diff1 = StateDiff(turn_increment=1)
+        action1 = ActionResult(
+            success=True, action=ActionType.LOOK, message="看"
+        )
+        sample_state_manager.commit(diff1, action1)
+        sample_state_manager.undo()
+        diff2 = StateDiff(turn_increment=1)
+        action2 = ActionResult(
+            success=True, action=ActionType.MOVE, message="走"
+        )
+        sample_state_manager.commit(diff2, action2)
+        with pytest.raises(IndexError):
+            sample_state_manager.redo()
