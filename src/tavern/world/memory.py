@@ -155,7 +155,6 @@ class MemorySystem:
         self,
         actor: str,
         state: WorldState,
-        current_topic: str = "",
         max_tokens: int = 2000,
     ) -> MemoryContext:
         recent_events = self._timeline.summarize()

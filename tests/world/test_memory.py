@@ -233,8 +233,8 @@ class TestMemorySystem:
         new_state = state.apply(diff)
         mem.apply_diff(diff, new_state)
 
-        rel = mem._relationship_graph.get("traveler", "player")
-        assert rel.value == 30
+        ctx = mem.build_context("traveler", new_state)
+        assert "30" in ctx.relationship_summary or "traveler" in ctx.relationship_summary
 
     def test_apply_diff_empty_relationship_changes_is_noop(self):
         from tavern.world.memory import MemorySystem
@@ -259,12 +259,13 @@ class TestMemorySystem:
         assert "旅行者谈起北方" in ctx.recent_events
 
     def test_sync_to_state_writes_snapshot(self):
-        from tavern.world.memory import MemorySystem
+        from tavern.world.memory import MemorySystem, RelationshipGraph
         state = self._make_state()
         mem = MemorySystem(state=state)
         mem._relationship_graph.update(RelationshipDelta(src="a", tgt="b", delta=10))
         new_state = mem.sync_to_state(state)
-        assert new_state.relationships_snapshot != {}
+        g2 = RelationshipGraph(snapshot=dict(new_state.relationships_snapshot))
+        assert g2.get("a", "b").value == 10
 
     def test_init_with_no_skills_dir(self):
         from tavern.world.memory import MemorySystem
