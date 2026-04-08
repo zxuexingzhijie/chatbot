@@ -204,11 +204,3 @@ def test_registry_registers_anthropic():
     with patch("anthropic.AsyncAnthropic"):
         adapter = LLMRegistry.create(config)
     assert isinstance(adapter, AnthropicAdapter)
-
-
-def test_anthropic_registered_after_import():
-    """Importing anthropic_llm registers 'anthropic' in the global registry."""
-    import importlib
-    import tavern.llm.anthropic_llm  # noqa: F401
-    importlib.reload(tavern.llm.anthropic_llm)  # force re-registration
-    assert "anthropic" in LLMRegistry._providers

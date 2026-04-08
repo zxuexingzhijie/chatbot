@@ -161,3 +161,11 @@ def test_pending_story_hints_cleared_after_handle_free_input():
     asyncio.run(app._handle_free_input("go nowhere"))
 
     assert app._pending_story_hints == []
+
+
+def test_app_import_registers_anthropic_provider():
+    """Importing tavern.cli.app registers both openai and anthropic providers."""
+    from tavern.llm.adapter import LLMRegistry
+    import tavern.cli.app  # noqa: F401 — triggers registration side-effects
+    assert "openai" in LLMRegistry._providers
+    assert "anthropic" in LLMRegistry._providers
