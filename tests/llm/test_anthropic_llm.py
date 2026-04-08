@@ -160,6 +160,34 @@ async def test_stream_yields_chunks():
     assert chunks == ["Hello", " world"]
 
 
+@pytest.mark.asyncio
+async def test_stream_with_system_passes_system_kwarg():
+    async def fake_text_stream():
+        yield "chunk"
+
+    mock_stream_ctx = AsyncMock()
+    mock_stream_ctx.__aenter__ = AsyncMock(return_value=mock_stream_ctx)
+    mock_stream_ctx.__aexit__ = AsyncMock(return_value=False)
+    mock_stream_ctx.text_stream = fake_text_stream()
+
+    mock_client = MagicMock()
+    mock_client.messages.stream = MagicMock(return_value=mock_stream_ctx)
+
+    adapter = AnthropicAdapter(config=LLMConfig(provider="anthropic", model="claude-3-haiku-20240307"))
+    adapter._client = mock_client
+
+    chunks = []
+    async for chunk in adapter.stream([
+        {"role": "system", "content": "You are a narrator."},
+        {"role": "user", "content": "describe"},
+    ]):
+        chunks.append(chunk)
+
+    call_kwargs = mock_client.messages.stream.call_args.kwargs
+    assert call_kwargs.get("system") == "You are a narrator."
+    assert all(m["role"] != "system" for m in call_kwargs["messages"])
+
+
 # ── API key / registry ─────────────────────────────────────────────────────
 
 def test_api_key_env_fallback(monkeypatch):

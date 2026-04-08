@@ -64,6 +64,7 @@ class AnthropicAdapter:
         kwargs: dict = {
             "model": self._config.model,
             "max_tokens": self._config.max_tokens,
+            "temperature": self._config.temperature,
             "messages": user_messages,
         }
         if system:
@@ -81,6 +82,7 @@ class AnthropicAdapter:
         kwargs: dict = {
             "model": self._config.model,
             "max_tokens": self._config.max_tokens,
+            "temperature": self._config.temperature,
             "messages": user_messages,
         }
         if system:
