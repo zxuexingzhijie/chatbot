@@ -55,3 +55,20 @@ def test_save_command_calls_save_manager(app, tmp_path):
 def test_save_command_named_slot(app, tmp_path):
     app._handle_system_command("save", "mygame")
     assert (tmp_path / "saves" / "mygame.json").exists()
+
+
+def test_load_command_rebuilds_state_manager_and_memory(app, tmp_path, mock_state):
+    app._save_manager.save(mock_state, "autosave")
+
+    app._handle_system_command("load", "autosave")
+
+    assert app._state_manager is not None
+    assert app._memory is not None
+    app._renderer.render_load_success.assert_called_once()
+    app._renderer.render_status_bar.assert_called()
+
+
+def test_load_during_dialogue_rejected(app, mock_state):
+    app._dialogue_manager.is_active = True
+    app._handle_system_command("load", "autosave")
+    app._renderer.render_load_success.assert_not_called()

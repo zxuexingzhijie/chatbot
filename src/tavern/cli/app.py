@@ -165,6 +165,31 @@ class GameApp:
             except OSError as e:
                 self._renderer.console.print(f"\n[red]存档失败：{e}[/]\n")
 
+        elif command == "load":
+            if self._dialogue_manager.is_active:
+                self._renderer.console.print("\n[red]请先结束当前对话再加载存档。[/]\n")
+                return
+            try:
+                loaded_state = self._save_manager.load(slot)
+                self._state_manager = StateManager(
+                    initial_state=loaded_state,
+                    max_history=self._game_config.get("undo_history_size", 50),
+                )
+                skills_dir = self._scenario_path / "skills"
+                self._memory = MemorySystem(
+                    state=loaded_state,
+                    skills_dir=skills_dir if skills_dir.exists() else None,
+                )
+                self._dialogue_ctx = None
+                import json as _json
+                save_path = self._save_manager._saves_dir / f"{slot}.json"
+                timestamp = _json.loads(save_path.read_text(encoding="utf-8")).get("timestamp", "")
+                self._renderer.render_load_success(slot, timestamp)
+                self._renderer.render_status_bar(self.state)
+            except (FileNotFoundError, ValueError) as e:
+                self._renderer.console.print(f"\n[red]{e}[/]\n")
+            return
+
         self._renderer.render_status_bar(self.state)
 
     async def _handle_free_input(self, user_input: str) -> None:
