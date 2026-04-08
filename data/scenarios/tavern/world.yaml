@@ -94,6 +94,11 @@ items:
     portable: true
     usable_with:
       - cellar_door
+    use_effects:
+      - type: unlock
+        location: bar_area
+        exit_direction: down
+      - type: consume
 
   old_barrel:
     name: 旧木桶
@@ -113,7 +118,16 @@ items:
   rusty_box:
     name: 生锈铁盒
     description: 从马车下找到的铁盒，里面有一把备用钥匙
-    portable: true
+    portable: false
+    use_effects:
+      - type: spawn_item
+        item_id: spare_key
+        spawn_to_inventory: true
+      - type: story_event
+        event:
+          id: box_opened
+          type: story
+          description: "玩家打开了铁盒，找到了备用钥匙"
 
   spare_key:
     name: 备用钥匙

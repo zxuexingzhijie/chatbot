@@ -63,3 +63,50 @@ def test_use_effect_spawn_to_inventory_false_roundtrip():
     data = eff.model_dump()
     restored = UseEffect(**data)
     assert restored.spawn_to_inventory is False
+
+
+def test_loader_builds_item_with_use_effects():
+    from tavern.world.loader import _build_items
+    raw = {
+        "cellar_key": {
+            "name": "地下室钥匙",
+            "description": "一把钥匙",
+            "portable": True,
+            "usable_with": ["cellar_door"],
+            "use_effects": [
+                {"type": "unlock", "location": "bar_area", "exit_direction": "down"},
+                {"type": "consume"},
+            ],
+        }
+    }
+    items = _build_items(raw)
+    key = items["cellar_key"]
+    assert len(key.use_effects) == 2
+    assert key.use_effects[0].type == "unlock"
+    assert key.use_effects[0].location == "bar_area"
+    assert key.use_effects[1].type == "consume"
+
+
+def test_loader_builds_item_with_story_event_effect():
+    from tavern.world.loader import _build_items
+    raw = {
+        "rusty_box": {
+            "name": "铁盒",
+            "description": "生锈的盒子",
+            "use_effects": [
+                {
+                    "type": "story_event",
+                    "event": {
+                        "id": "box_opened",
+                        "type": "story",
+                        "description": "铁盒打开了",
+                    },
+                }
+            ],
+        }
+    }
+    items = _build_items(raw)
+    box = items["rusty_box"]
+    assert len(box.use_effects) == 1
+    assert box.use_effects[0].event is not None
+    assert box.use_effects[0].event.id == "box_opened"
