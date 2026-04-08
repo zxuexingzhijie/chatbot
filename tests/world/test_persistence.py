@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -98,3 +99,39 @@ def test_load_wrong_version(tmp_path):
     mgr = SaveManager(saves_dir)
     with pytest.raises(ValueError, match="版本不兼容"):
         mgr.load("test")
+
+
+def test_list_saves_empty(tmp_path):
+    mgr = SaveManager(tmp_path / "saves")
+    assert mgr.list_saves() == []
+
+
+def test_list_saves_returns_saveinfo(tmp_path, minimal_state):
+    mgr = SaveManager(tmp_path / "saves")
+    mgr.save(minimal_state, "slot1")
+    saves = mgr.list_saves()
+    assert len(saves) == 1
+    assert saves[0].slot == "slot1"
+    assert saves[0].path == tmp_path / "saves" / "slot1.json"
+    assert "T" in saves[0].timestamp  # ISO 8601
+
+
+def test_list_saves_sorted_by_timestamp_desc(tmp_path, minimal_state):
+    mgr = SaveManager(tmp_path / "saves")
+    mgr.save(minimal_state, "old")
+    time.sleep(0.01)
+    mgr.save(minimal_state, "new")
+    saves = mgr.list_saves()
+    assert saves[0].slot == "new"
+    assert saves[1].slot == "old"
+
+
+def test_exists_true(tmp_path, minimal_state):
+    mgr = SaveManager(tmp_path / "saves")
+    mgr.save(minimal_state, "autosave")
+    assert mgr.exists("autosave") is True
+
+
+def test_exists_false(tmp_path):
+    mgr = SaveManager(tmp_path / "saves")
+    assert mgr.exists("autosave") is False

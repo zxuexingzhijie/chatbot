@@ -45,6 +45,26 @@ class SaveManager:
         path.write_text(json.dumps(envelope, ensure_ascii=False, indent=2), encoding="utf-8")
         return path
 
+    def list_saves(self) -> list[SaveInfo]:
+        if not self._saves_dir.exists():
+            return []
+        saves: list[SaveInfo] = []
+        for path in self._saves_dir.glob("*.json"):
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                saves.append(SaveInfo(
+                    slot=data.get("slot", path.stem),
+                    timestamp=data.get("timestamp", ""),
+                    path=path,
+                ))
+            except Exception:
+                logger.warning("list_saves: skipping unreadable file %s", path)
+        saves.sort(key=lambda s: s.timestamp, reverse=True)
+        return saves
+
+    def exists(self, slot: str) -> bool:
+        return (self._saves_dir / f"{slot}.json").exists()
+
     def load(self, slot: str = "autosave") -> WorldState:
         path = self._saves_dir / f"{slot}.json"
         if not path.exists():
