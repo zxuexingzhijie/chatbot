@@ -397,12 +397,13 @@ elif command == "continue":
         await self._apply_story_results(story_results)
 ```
 
-### 6.4 `_apply_story_results`
+### 6.4 `_apply_story_results` 与 `_update_story_active_since`
+
+`story_active_since` 更新逻辑**独立**于是否有节点触发。即使本回合 `results` 为空（无节点触发），新解锁的活跃节点也必须登记激活时间，否则 Fail Forward 计时永远不会开始。
 
 ```python
 async def _apply_story_results(self, results: list[StoryResult]) -> None:
-    if not results:
-        return
+    # 注意：不在开头 return，由调用方决定是否跳过
     for r in results:
         self._state_manager.commit(
             r.diff,
@@ -413,7 +414,8 @@ async def _apply_story_results(self, results: list[StoryResult]) -> None:
         if r.narrator_hint:
             self._pending_story_hints.append(r.narrator_hint)
 
-    # 循环结束后一次性更新 active_since
+def _update_story_active_since(self) -> None:
+    """无条件调用，确保每回合新进入活跃集的节点登记激活时间。"""
     new_active = self._story_engine.get_active_nodes(self.state)
     since_updates = {
         nid: self.state.turn
@@ -427,6 +429,17 @@ async def _apply_story_results(self, results: list[StoryResult]) -> None:
                          message="故事进度更新"),
         )
 ```
+
+**调用顺序**（`_handle_free_input` 末尾）：
+
+```python
+story_results = self._story_engine.check(self.state, "passive", ...)
+story_results += self._story_engine.check_fail_forward(self.state)
+await self._apply_story_results(story_results)
+self._update_story_active_since()  # 无条件调用，不依赖 results 是否为空
+```
+
+同理，`continue` 命令处理后也需调用 `_update_story_active_since()`。
 
 ### 6.5 Narrator hint 注入
 
