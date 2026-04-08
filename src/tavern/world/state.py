@@ -18,6 +18,7 @@ class StateDiff(BaseModel):
     quest_updates: dict[str, dict] = {}
     new_events: tuple[Event, ...] = ()
     story_active_since_updates: dict[str, int] = {}
+    character_stat_deltas: dict[str, dict[str, int]] = {}
     turn_increment: int = 1
 
 
@@ -63,6 +64,15 @@ class WorldState(BaseModel):
                 new_characters[char_id] = new_characters[char_id].model_copy(
                     update=updates
                 )
+
+        for char_id, deltas in diff.character_stat_deltas.items():
+            if char_id not in new_characters:
+                continue
+            char = new_characters[char_id]
+            new_stats = dict(char.stats)
+            for stat_name, delta_val in deltas.items():
+                new_stats[stat_name] = new_stats.get(stat_name, 0) + delta_val
+            new_characters[char_id] = char.model_copy(update={"stats": new_stats})
 
         new_locations = dict(self.locations)
         for loc_id, updates in diff.updated_locations.items():

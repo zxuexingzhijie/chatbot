@@ -49,6 +49,43 @@ class TestWorldState:
         assert len(new_state.timeline) == 1
         assert new_state.timeline[0].id == "evt_1"
 
+    def test_apply_character_stat_deltas(self, sample_world_state):
+        diff = StateDiff(
+            character_stat_deltas={"bartender_grim": {"trust": 20}},
+            turn_increment=0,
+        )
+        new_state = sample_world_state.apply(diff)
+        assert new_state.characters["bartender_grim"].stats["trust"] == 20
+
+    def test_apply_character_stat_deltas_additive(self, sample_world_state):
+        diff1 = StateDiff(
+            character_stat_deltas={"bartender_grim": {"trust": 15}},
+            turn_increment=0,
+        )
+        state2 = sample_world_state.apply(diff1)
+        diff2 = StateDiff(
+            character_stat_deltas={"bartender_grim": {"trust": 10}},
+            turn_increment=0,
+        )
+        state3 = state2.apply(diff2)
+        assert state3.characters["bartender_grim"].stats["trust"] == 25
+
+    def test_apply_character_stat_deltas_new_stat(self, sample_world_state):
+        diff = StateDiff(
+            character_stat_deltas={"bartender_grim": {"fear": 5}},
+            turn_increment=0,
+        )
+        new_state = sample_world_state.apply(diff)
+        assert new_state.characters["bartender_grim"].stats["fear"] == 5
+
+    def test_apply_character_stat_deltas_unknown_character_ignored(self, sample_world_state):
+        diff = StateDiff(
+            character_stat_deltas={"nonexistent": {"trust": 10}},
+            turn_increment=0,
+        )
+        new_state = sample_world_state.apply(diff)
+        assert "nonexistent" not in new_state.characters
+
 
 class TestStateManager:
     def test_current_returns_initial(self, sample_state_manager, sample_world_state):
