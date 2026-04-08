@@ -18,7 +18,7 @@ llm:
 game:
   auto_save_interval: 5
   undo_history_size: 50
-  save_dir: ./saves
+  saves_dir: "saves"
   scenario: data/scenarios/tavern
 
 debug:
