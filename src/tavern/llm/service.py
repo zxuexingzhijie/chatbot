@@ -41,6 +41,10 @@ INTENT_SYSTEM_PROMPT = """\
 "detail": "拾取旧告示", "confidence": 0.95}}
 - 输入: "和旅行者聊聊" -> {{"action": "talk", "target": "traveler", \
 "detail": "与旅行者对话", "confidence": 0.9}}
+- 输入: "用钥匙开地下室的门" -> {{"action": "use", "target": "cellar_key", \
+"detail": "cellar_door", "confidence": 0.95}}
+- 输入: "使用铁盒" -> {{"action": "use", "target": "rusty_box", \
+"detail": null, "confidence": 0.9}}
 """
 
 
