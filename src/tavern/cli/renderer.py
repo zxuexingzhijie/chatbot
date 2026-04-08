@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from rich.console import Console
 from rich.panel import Panel
@@ -9,6 +10,7 @@ from rich.table import Table
 from tavern.dialogue.context import DialogueContext, DialogueResponse, DialogueSummary
 from tavern.engine.actions import ActionType
 from tavern.world.models import ActionResult
+from tavern.world.persistence import SaveInfo
 from tavern.world.state import WorldState
 
 logger = logging.getLogger(__name__)
@@ -95,12 +97,33 @@ class Renderer:
             "status": "查看角色状态",
             "hint": "获取游戏提示",
             "undo": "回退上一步",
+            "save [名称]": "存档（默认槽: autosave）",
+            "load [名称]": "读档（默认槽: autosave）",
+            "saves": "列出所有存档",
             "help": "显示此帮助",
             "quit": "退出游戏",
         }
         for cmd, desc in commands.items():
             self.console.print(f"  [cyan]{cmd}[/] — {desc}")
         self.console.print("\n[dim]输入任何其他内容与世界自由互动。[/]\n")
+
+    def render_save_success(self, slot: str, path: Path) -> None:
+        self.console.print(f"\n[green]已存档：{slot}（{path}）[/]\n")
+
+    def render_load_success(self, slot: str, timestamp: str) -> None:
+        self.console.print(f"\n[green]已读取存档：{slot}（{timestamp}）[/]\n")
+
+    def render_saves_list(self, saves: list[SaveInfo]) -> None:
+        if not saves:
+            self.console.print("\n[dim]暂无存档。[/]\n")
+            return
+        table = Table(title="存档列表")
+        table.add_column("槽名", style="cyan")
+        table.add_column("时间戳")
+        table.add_column("路径", style="dim")
+        for s in saves:
+            table.add_row(s.slot, s.timestamp, str(s.path))
+        self.console.print(table)
 
     def get_input(self) -> str:
         try:

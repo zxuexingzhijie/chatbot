@@ -1,4 +1,5 @@
 from io import StringIO
+from pathlib import Path
 
 import pytest
 from rich.console import Console
@@ -48,6 +49,39 @@ class TestRenderer:
         renderer.render_inventory(sample_world_state)
         output = console.file.getvalue()
         assert "背包" in output or "空" in output
+
+    def test_render_save_success(self, renderer, console):
+        renderer.render_save_success("autosave", Path("saves/autosave.json"))
+        output = console.file.getvalue()
+        assert "autosave" in output
+
+    def test_render_load_success(self, renderer, console):
+        renderer.render_load_success("autosave", "2026-04-08T12:00:00+00:00")
+        output = console.file.getvalue()
+        assert "autosave" in output
+
+    def test_render_saves_list_empty(self, renderer, console):
+        renderer.render_saves_list([])
+        output = console.file.getvalue()
+        assert "暂无存档" in output
+
+    def test_render_saves_list_nonempty(self, renderer, console):
+        from tavern.world.persistence import SaveInfo
+        saves = [
+            SaveInfo(slot="autosave", timestamp="2026-04-08T12:00:00+00:00", path=Path("saves/autosave.json")),
+            SaveInfo(slot="mygame", timestamp="2026-04-07T09:00:00+00:00", path=Path("saves/mygame.json")),
+        ]
+        renderer.render_saves_list(saves)
+        output = console.file.getvalue()
+        assert "autosave" in output
+        assert "mygame" in output
+
+    def test_render_help_includes_save_commands(self, renderer, console):
+        renderer.render_help()
+        output = console.file.getvalue()
+        assert "save" in output
+        assert "load" in output
+        assert "saves" in output
 
 
 from io import StringIO
