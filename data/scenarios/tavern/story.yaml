@@ -1,0 +1,59 @@
+nodes:
+  - id: cellar_mystery_discovered
+    act: act1
+    requires: []
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions:
+        - type: location
+          event_id: cellar
+
+    fail_forward:
+      after_turns: 8
+      hint_event:
+        description: "格里姆擦拭杯子时无意间说道：地下室里的东西，不是一般人能碰的……"
+        actor: bartender_grim
+
+    effects:
+      quest_updates:
+        cellar_mystery: { status: discovered }
+      new_events:
+        - id: cellar_entered
+          type: story
+          description: "玩家首次进入地下室，发现异常划痕"
+
+    narrator_hint: "氛围阴森，引导玩家注意地面划痕和旧木桶，暗示有秘密。"
+
+  - id: cellar_secret_revealed
+    act: act1
+    requires: [cellar_mystery_discovered]
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions:
+        - type: relationship
+          source: player
+          target: bartender_grim
+          attribute: trust
+          operator: ">="
+          value: 30
+        - type: event
+          event_id: cellar_entered
+          check: exists
+
+    fail_forward:
+      after_turns: 15
+      hint_event:
+        description: "深夜，你隐约听到地下室传来拖拽重物的声音。"
+        actor: bartender_grim
+
+    effects:
+      quest_updates:
+        cellar_mystery: { status: revealed }
+      new_events:
+        - id: secret_learned
+          type: story
+          description: "玩家得知地下室密道的存在"
+
+    narrator_hint: "格里姆终于开口，压低声音提及密道，措辞谨慎。"
