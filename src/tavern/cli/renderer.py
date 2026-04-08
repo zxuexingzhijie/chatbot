@@ -193,7 +193,7 @@ class Renderer:
         self.console.print(
             Panel(
                 f"[bold]{title}[/]\n\n"
-                "[dim]感谢你的冒险。输入任意键退出。[/]",
+                "[dim]感谢你的冒险。游戏已结束。[/]",
                 border_style="bright_yellow",
                 padding=(1, 2),
             )

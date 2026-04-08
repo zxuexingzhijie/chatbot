@@ -412,6 +412,7 @@ class GameApp:
                 self._pending_story_hints.append(r.narrator_hint)
             if r.diff.new_endings:
                 self._ending_triggered = (r.diff.new_endings[0], r.narrator_hint or "")
+                break
 
     def _update_story_active_since(self) -> None:
         new_active = self._story_engine.get_active_nodes(self.state)
