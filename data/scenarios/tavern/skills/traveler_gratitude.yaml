@@ -1,0 +1,20 @@
+id: traveler_gratitude
+name: 旅行者的感谢
+character: traveler
+priority: high
+activation:
+  - type: quest
+    event_id: traveler_quest
+    check: completed
+  - type: event
+    event_id: traveler_quest_done
+    check: exists
+facts:
+  - "地图碎片标注了城镇地下密道的一段走向"
+  - "这张地图碎片是在旅途中一个废弃图书馆里找到的"
+  - "密道似乎通往城外的森林"
+behavior:
+  tone: "感激、放松、愿意分享更多"
+  reveal_strategy: "主动分享地图碎片的来历和密道信息"
+  forbidden: "不知道密道的确切位置和目前是否有人使用"
+related_skills: []

@@ -1,0 +1,18 @@
+id: traveler_quest_info
+name: 旅行者的委托
+character: traveler
+priority: high
+activation:
+  - type: quest
+    event_id: traveler_quest
+    check: active
+facts:
+  - "护身符是家传宝物，从祖母那里继承的"
+  - "护身符可能掉在了后院废弃马车附近"
+  - "护身符表面有古老的符文，会微微发光"
+behavior:
+  tone: "焦急但友善，偶尔叹气"
+  reveal_strategy: "先说护身符很重要，再说可能掉在后院"
+  forbidden: "不会提及护身符有任何魔法效果"
+related_skills:
+  - traveler_gratitude

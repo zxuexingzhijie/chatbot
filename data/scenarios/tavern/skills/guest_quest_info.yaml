@@ -1,0 +1,18 @@
+id: guest_quest_info
+name: 神秘旅客的委托
+character: mysterious_guest
+priority: high
+activation:
+  - type: quest
+    event_id: guest_quest
+    check: active
+facts:
+  - "怀疑酒保在地下室藏了什么东西"
+  - "地下室最近有异常动静"
+  - "自己来酒馆是有特殊目的的"
+behavior:
+  tone: "冷静、点到为止、警觉"
+  reveal_strategy: "只说怀疑地下室有秘密，不透露自己的真实身份和目的"
+  forbidden: "绝不透露自己的身份、来历或真正目的"
+related_skills:
+  - guest_secret_knowledge
