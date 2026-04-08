@@ -72,3 +72,28 @@ def test_load_during_dialogue_rejected(app, mock_state):
     app._dialogue_manager.is_active = True
     app._handle_system_command("load", "autosave")
     app._renderer.render_load_success.assert_not_called()
+
+
+def test_saves_command_renders_list(app):
+    app._handle_system_command("saves", "autosave")
+    app._renderer.render_saves_list.assert_called_once()
+
+
+def test_autosave_after_successful_action(app, tmp_path, mock_state):
+    from tavern.world.state import StateDiff
+    from tavern.engine.actions import ActionType
+    from tavern.world.models import ActionResult
+
+    diff = StateDiff(turn_increment=1)
+    result = ActionResult(success=True, action=ActionType.MOVE, message="移动了")
+    app._state_manager.commit(diff, result)
+    new_state = app._memory.sync_to_state(app.state)
+    app._save_manager.save(new_state, "autosave")
+    assert (tmp_path / "saves" / "autosave.json").exists()
+
+
+def test_autosave_after_dialogue_end(app, tmp_path, mock_state):
+    app._memory.sync_to_state.return_value = mock_state
+    new_state = app._memory.sync_to_state(app.state)
+    app._save_manager.save(new_state, "autosave")
+    assert (tmp_path / "saves" / "autosave.json").exists()

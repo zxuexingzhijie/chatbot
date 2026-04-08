@@ -165,6 +165,10 @@ class GameApp:
             except OSError as e:
                 self._renderer.console.print(f"\n[red]存档失败：{e}[/]\n")
 
+        elif command == "saves":
+            saves = self._save_manager.list_saves()
+            self._renderer.render_saves_list(saves)
+
         elif command == "load":
             if self._dialogue_manager.is_active:
                 self._renderer.console.print("\n[red]请先结束当前对话再加载存档。[/]\n")
@@ -214,6 +218,9 @@ class GameApp:
         if diff is not None:
             self._state_manager.commit(diff, result)
             self._memory.apply_diff(diff, self.state)
+            if result.success and request.action not in (ActionType.TALK, ActionType.PERSUADE):
+                new_state = self._memory.sync_to_state(self.state)
+                self._save_manager.save(new_state, "autosave")
 
         if result.success and request.action in (
             ActionType.TALK, ActionType.PERSUADE
@@ -323,3 +330,5 @@ class GameApp:
             ),
         )
         self._memory.apply_diff(event_diff, self.state)
+        new_state = self._memory.sync_to_state(self.state)
+        self._save_manager.save(new_state, "autosave")
