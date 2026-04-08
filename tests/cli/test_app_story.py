@@ -120,3 +120,14 @@ def test_active_since_updated_after_apply():
     committed_diff = app._state_manager.commit.call_args[0][0]
     assert "n2" in committed_diff.story_active_since_updates
     assert "n1" not in committed_diff.story_active_since_updates
+
+
+def test_apply_story_results_accumulates_narrator_hint():
+    app, state = _make_app()
+    from tavern.engine.story import StoryResult
+    from tavern.world.state import StateDiff
+
+    diff = StateDiff(turn_increment=0)
+    results = [StoryResult(node_id="n1", diff=diff, narrator_hint="spooky hint")]
+    asyncio.run(app._apply_story_results(results))
+    assert app._pending_story_hints == ["spooky hint"]

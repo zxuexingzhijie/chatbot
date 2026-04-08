@@ -170,7 +170,7 @@ class GameApp:
             if not story_results:
                 self._renderer.console.print("\n[dim]目前没有新的剧情推进。[/]\n")
             else:
-                asyncio.run(self._apply_story_results(story_results))
+                self._apply_story_results_sync(story_results)
             self._update_story_active_since()
 
         elif command == "help":
@@ -364,6 +364,9 @@ class GameApp:
             logger.warning("autosave failed: %s", e)
 
     async def _apply_story_results(self, results: list[StoryResult]) -> None:
+        self._apply_story_results_sync(results)
+
+    def _apply_story_results_sync(self, results: list[StoryResult]) -> None:
         for r in results:
             self._state_manager.commit(
                 r.diff,
