@@ -122,6 +122,12 @@ class TestGameAppMemory:
             return_value=ActionRequest(action=ActionType.LOOK)
         )
         app._save_manager = MagicMock()
+        mock_story_engine = MagicMock()
+        mock_story_engine.check = MagicMock(return_value=[])
+        mock_story_engine.check_fail_forward = MagicMock(return_value=[])
+        mock_story_engine.get_active_nodes = MagicMock(return_value=set())
+        app._story_engine = mock_story_engine
+        app._pending_story_hints = []
 
         await app._handle_free_input("看看四周")
 

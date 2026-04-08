@@ -178,6 +178,12 @@ class TestNarrativeIntegration:
         mock_memory = MagicMock()
         mock_memory.build_context.return_value = MagicMock()
         app._memory = mock_memory
+        mock_story_engine = MagicMock()
+        mock_story_engine.check = MagicMock(return_value=[])
+        mock_story_engine.check_fail_forward = MagicMock(return_value=[])
+        mock_story_engine.get_active_nodes = MagicMock(return_value=set())
+        app._story_engine = mock_story_engine
+        app._pending_story_hints = []
 
         render_result_calls = []
         render_stream_calls = []

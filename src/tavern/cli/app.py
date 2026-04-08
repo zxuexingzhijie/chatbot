@@ -22,10 +22,11 @@ from tavern.world.loader import load_scenario
 from tavern.world.memory import MemorySystem
 from tavern.world.models import ActionRequest, ActionResult, Event
 from tavern.world.state import StateManager, StateDiff, WorldState
+from tavern.engine.story import StoryEngine, StoryResult, load_story_nodes
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_COMMANDS = {"look", "inventory", "status", "hint", "undo", "help", "quit", "save", "load", "saves"}
+SYSTEM_COMMANDS = {"look", "inventory", "status", "hint", "undo", "help", "quit", "save", "load", "saves", "continue"}
 
 _LLM_CONFIG_FIELDS = set(LLMConfig.model_fields.keys())
 
@@ -77,6 +78,12 @@ class GameApp:
         saves_dir = Path(game_config.get("saves_dir", "saves"))
         from tavern.world.persistence import SaveManager
         self._save_manager = SaveManager(saves_dir)
+
+        story_path = scenario_path / "story.yaml"
+        self._story_engine = StoryEngine(
+            load_story_nodes(story_path) if story_path.exists() else {}
+        )
+        self._pending_story_hints: list[str] = []
 
         debug_config = config.get("debug", {})
         self._show_intent = debug_config.get("show_intent_json", False)
@@ -154,6 +161,17 @@ class GameApp:
                 self._renderer.render_result(result)
             except IndexError:
                 self._renderer.console.print("\n[red]没有可以回退的步骤。[/]\n")
+
+        elif command == "continue":
+            story_results = self._story_engine.check(
+                self.state, "continue",
+                self._memory._timeline, self._memory._relationship_graph,
+            )
+            if not story_results:
+                self._renderer.console.print("\n[dim]目前没有新的剧情推进。[/]\n")
+            else:
+                asyncio.run(self._apply_story_results(story_results))
+            self._update_story_active_since()
 
         elif command == "help":
             self._renderer.render_help()
@@ -243,12 +261,22 @@ class GameApp:
                 return
 
         if result.success and not self._dialogue_manager.is_active:
+            story_results = self._story_engine.check(
+                self.state, "passive",
+                self._memory._timeline, self._memory._relationship_graph,
+            )
+            story_results += self._story_engine.check_fail_forward(self.state)
+            await self._apply_story_results(story_results)
+            self._update_story_active_since()
+
             memory_ctx = self._memory.build_context(
                 actor=result.target or self.state.player_id,
                 state=self.state,
             )
+            combined_hint = "\n".join(self._pending_story_hints) or None
+            self._pending_story_hints.clear()
             await self._renderer.render_stream(
-                self._narrator.stream_narrative(result, self.state, memory_ctx)
+                self._narrator.stream_narrative(result, self.state, memory_ctx, story_hint=combined_hint)
             )
         else:
             self._renderer.render_result(result)
@@ -334,3 +362,34 @@ class GameApp:
             self._save_manager.save(new_state, "autosave")
         except OSError as e:
             logger.warning("autosave failed: %s", e)
+
+    async def _apply_story_results(self, results: list[StoryResult]) -> None:
+        for r in results:
+            self._state_manager.commit(
+                r.diff,
+                ActionResult(
+                    success=True,
+                    action=ActionType.CUSTOM,
+                    message=f"剧情节点触发：{r.node_id}",
+                ),
+            )
+            self._memory.apply_diff(r.diff, self.state)
+            if r.narrator_hint:
+                self._pending_story_hints.append(r.narrator_hint)
+
+    def _update_story_active_since(self) -> None:
+        new_active = self._story_engine.get_active_nodes(self.state)
+        since_updates = {
+            nid: self.state.turn
+            for nid in new_active
+            if nid not in self.state.story_active_since
+        }
+        if since_updates:
+            self._state_manager.commit(
+                StateDiff(story_active_since_updates=since_updates, turn_increment=0),
+                ActionResult(
+                    success=True,
+                    action=ActionType.CUSTOM,
+                    message="故事进度更新",
+                ),
+            )
