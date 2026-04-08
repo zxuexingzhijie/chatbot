@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 import uuid
 
 from tavern.engine.actions import ActionType
 from tavern.world.models import ActionRequest, ActionResult, Event
 from tavern.world.state import StateDiff, WorldState
+
+logger = logging.getLogger(__name__)
 
 
 class RulesEngine:
@@ -328,6 +331,89 @@ def _handle_custom(request: ActionRequest, state: WorldState):
     )
 
 
+def _handle_use(request: ActionRequest, state: WorldState):
+    from tavern.engine.use_effects import USE_EFFECT_REGISTRY
+
+    item_id = request.target
+
+    if item_id is None:
+        return (
+            ActionResult(success=False, action=ActionType.USE, message="你想使用什么？"),
+            None,
+        )
+
+    player = _get_player(state)
+    location = _get_player_location(state)
+    if item_id not in player.inventory and item_id not in location.items:
+        return (
+            ActionResult(success=False, action=ActionType.USE,
+                         message="你没有那个物品。", target=item_id),
+            None,
+        )
+
+    if item_id not in state.items:
+        return (
+            ActionResult(success=False, action=ActionType.USE,
+                         message=f"未知物品: {item_id}", target=item_id),
+            None,
+        )
+
+    item = state.items[item_id]
+
+    if item.usable_with:
+        if request.detail is None:
+            return (
+                ActionResult(success=False, action=ActionType.USE,
+                             message="你想把它用在什么上？", target=item_id),
+                None,
+            )
+        if request.detail not in item.usable_with:
+            return (
+                ActionResult(success=False, action=ActionType.USE,
+                             message="该物品不能用在这里。", target=item_id),
+                None,
+            )
+
+    if not item.use_effects:
+        return (
+            ActionResult(success=False, action=ActionType.USE,
+                         message=f"「{item.name}」无法使用。", target=item_id),
+            None,
+        )
+
+    combined_diff = StateDiff(turn_increment=1)
+    messages = []
+    current_state = state
+    for eff in item.use_effects:
+        fn = USE_EFFECT_REGISTRY.get(eff.type)
+        if fn is None:
+            logger.warning("未知 use_effect 类型: %s（物品: %s）", eff.type, item_id)
+            continue
+        diff, msg = fn(eff, item_id, current_state)
+        combined_diff = _merge_diffs(combined_diff, diff)
+        current_state = current_state.apply(diff)
+        if msg:
+            messages.append(msg)
+
+    final_message = "\n".join(messages) if messages else f"你使用了「{item.name}」。"
+    return (
+        ActionResult(success=True, action=ActionType.USE,
+                     message=final_message, target=item_id),
+        combined_diff,
+    )
+
+
+def _merge_diffs(a: StateDiff, b: StateDiff) -> StateDiff:
+    return StateDiff(
+        updated_characters={**a.updated_characters, **b.updated_characters},
+        updated_locations={**a.updated_locations, **b.updated_locations},
+        added_items={**a.added_items, **b.added_items},
+        removed_items=a.removed_items + b.removed_items,
+        new_events=a.new_events + b.new_events,
+        turn_increment=a.turn_increment + b.turn_increment,
+    )
+
+
 _ACTION_HANDLERS = {
     ActionType.MOVE: _handle_move,
     ActionType.LOOK: _handle_look,
@@ -335,5 +421,6 @@ _ACTION_HANDLERS = {
     ActionType.TAKE: _handle_take,
     ActionType.TALK: _handle_talk,
     ActionType.PERSUADE: _handle_talk,
+    ActionType.USE: _handle_use,
     ActionType.CUSTOM: _handle_custom,
 }
