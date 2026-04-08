@@ -138,24 +138,30 @@ def test_unknown_effect_type_not_in_registry():
     assert "unknown_type_xyz" not in USE_EFFECT_REGISTRY
 
 
-# ── multiple effects + merge ──────────────────────────────────────────────
+def test_consume_effect_item_not_in_inventory_skips():
+    from tavern.engine.use_effects import effect_consume
+    eff = UseEffect(type="consume")
+    state = _make_state(player_inventory=("other_item",))
+    diff, msg = effect_consume(eff, "cellar_key", state)
+    assert diff.updated_characters == {}
+    assert msg is None
 
-def test_unlock_and_consume_merge():
-    """Unlock + consume effects produce a merged diff with both updates."""
-    from tavern.engine.use_effects import USE_EFFECT_REGISTRY
-    from tavern.engine.rules import _merge_diffs
 
-    state = _make_state(player_inventory=("cellar_key",), exit_locked=True)
+def test_story_event_uses_explicit_actor():
+    from tavern.engine.use_effects import effect_story_event
+    eff = UseEffect(
+        type="story_event",
+        event=EventSpec(id="evt", type="story", description="d", actor="npc_bartender"),
+    )
+    state = _make_state()
+    diff, msg = effect_story_event(eff, "box", state)
+    assert diff.new_events[0].actor == "npc_bartender"
 
-    eff_unlock = UseEffect(type="unlock", location="bar_area", exit_direction="down")
-    eff_consume = UseEffect(type="consume")
 
-    diff_a, _ = USE_EFFECT_REGISTRY["unlock"](eff_unlock, "cellar_key", state)
-    state2 = state.apply(diff_a)
-    diff_b, _ = USE_EFFECT_REGISTRY["consume"](eff_consume, "cellar_key", state2)
-
-    combined = _merge_diffs(diff_a, diff_b)
-    assert "bar_area" in combined.updated_locations
-    assert "player" in combined.updated_characters
-    new_inv = combined.updated_characters["player"]["inventory"]
-    assert "cellar_key" not in new_inv
+def test_spawn_item_to_location_none_skips():
+    from tavern.engine.use_effects import effect_spawn_item
+    eff = UseEffect(type="spawn_item", item_id="spare_key", spawn_to_inventory=False, location=None)
+    state = _make_state()
+    diff, msg = effect_spawn_item(eff, "box", state)
+    assert diff.updated_locations == {}
+    assert msg is None

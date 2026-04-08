@@ -50,6 +50,9 @@ def effect_unlock(eff: UseEffect, item_id: str, state: WorldState) -> tuple[Stat
 @register_effect("consume")
 def effect_consume(eff: UseEffect, item_id: str, state: WorldState) -> tuple[StateDiff, str | None]:
     player = state.characters[state.player_id]
+    if item_id not in player.inventory:
+        logger.warning("consume effect: item %r not in player inventory", item_id)
+        return StateDiff(turn_increment=0), None
     new_inventory = tuple(i for i in player.inventory if i != item_id)
     diff = StateDiff(
         updated_characters={state.player_id: {"inventory": new_inventory}},
@@ -102,7 +105,7 @@ def effect_story_event(eff: UseEffect, item_id: str, state: WorldState) -> tuple
 
     actor = eff.event.actor or state.player_id
     event = Event(
-        id=f"{eff.event.id}_{uuid.uuid4().hex[:6]}",
+        id=f"{eff.event.id}_{uuid.uuid4().hex[:8]}",
         turn=state.turn,
         type=eff.event.type,
         actor=actor,
