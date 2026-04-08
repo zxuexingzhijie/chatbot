@@ -44,3 +44,15 @@ class SaveManager:
         }
         path.write_text(json.dumps(envelope, ensure_ascii=False, indent=2), encoding="utf-8")
         return path
+
+    def load(self, slot: str = "autosave") -> WorldState:
+        path = self._saves_dir / f"{slot}.json"
+        if not path.exists():
+            raise FileNotFoundError(f"存档不存在：{slot}")
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"存档文件损坏：{slot}") from exc
+        if data.get("version") != SAVE_VERSION:
+            raise ValueError("存档版本不兼容，请重新开始游戏")
+        return WorldState.model_validate(data["state"])

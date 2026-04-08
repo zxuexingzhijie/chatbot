@@ -58,3 +58,43 @@ def test_saves_dir_created_on_first_save(tmp_path, minimal_state):
     mgr = SaveManager(saves_dir)
     mgr.save(minimal_state, "autosave")
     assert saves_dir.exists()
+
+
+def test_save_load_roundtrip(tmp_path, minimal_state):
+    mgr = SaveManager(tmp_path / "saves")
+    mgr.save(minimal_state, "autosave")
+    loaded = mgr.load("autosave")
+    assert loaded.turn == minimal_state.turn
+    assert loaded.player_id == minimal_state.player_id
+    assert loaded.characters["player"].stats["hp"] == 100
+
+
+def test_load_nonexistent_slot(tmp_path):
+    mgr = SaveManager(tmp_path / "saves")
+    with pytest.raises(FileNotFoundError, match="autosave"):
+        mgr.load("autosave")
+
+
+def test_load_corrupt_json(tmp_path):
+    saves_dir = tmp_path / "saves"
+    saves_dir.mkdir()
+    (saves_dir / "bad.json").write_text("not valid json", encoding="utf-8")
+    mgr = SaveManager(saves_dir)
+    with pytest.raises(ValueError, match="bad"):
+        mgr.load("bad")
+
+
+def test_load_wrong_version(tmp_path):
+    saves_dir = tmp_path / "saves"
+    saves_dir.mkdir()
+    import json as _json
+    bad_envelope = {
+        "version": 99,
+        "timestamp": "2026-01-01T00:00:00+00:00",
+        "slot": "test",
+        "state": {},
+    }
+    (saves_dir / "test.json").write_text(_json.dumps(bad_envelope), encoding="utf-8")
+    mgr = SaveManager(saves_dir)
+    with pytest.raises(ValueError, match="版本不兼容"):
+        mgr.load("test")
