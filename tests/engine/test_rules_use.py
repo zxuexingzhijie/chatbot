@@ -153,6 +153,20 @@ def test_merge_diffs_combines_fields():
     assert merged.turn_increment == 1
 
 
+def test_merge_diffs_deep_merges_same_location():
+    """Two effects targeting same location different fields don't overwrite each other."""
+    from tavern.engine.rules import _merge_diffs
+    from tavern.world.models import Exit
+
+    exit_unlocked = Exit(target="cellar", locked=False, description="铁门")
+    a = StateDiff(updated_locations={"bar_area": {"exits": {"down": exit_unlocked}}})
+    b = StateDiff(updated_locations={"bar_area": {"items": ("spare_key",)}})
+    merged = _merge_diffs(a, b)
+
+    assert "exits" in merged.updated_locations["bar_area"]
+    assert "items" in merged.updated_locations["bar_area"]
+
+
 def test_unlock_and_consume_merge():
     """Unlock + consume effects produce a merged diff with both updates."""
     from tavern.engine.use_effects import USE_EFFECT_REGISTRY

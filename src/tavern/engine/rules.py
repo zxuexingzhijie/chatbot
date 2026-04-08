@@ -404,9 +404,19 @@ def _handle_use(request: ActionRequest, state: WorldState):
 
 
 def _merge_diffs(a: StateDiff, b: StateDiff) -> StateDiff:
+    def _deep_merge(x: dict, y: dict) -> dict:
+        """Merge two dicts; when both have same key, merge the inner dicts."""
+        result = dict(x)
+        for k, v in y.items():
+            if k in result and isinstance(result[k], dict) and isinstance(v, dict):
+                result[k] = {**result[k], **v}
+            else:
+                result[k] = v
+        return result
+
     return StateDiff(
-        updated_characters={**a.updated_characters, **b.updated_characters},
-        updated_locations={**a.updated_locations, **b.updated_locations},
+        updated_characters=_deep_merge(a.updated_characters, b.updated_characters),
+        updated_locations=_deep_merge(a.updated_locations, b.updated_locations),
         added_items={**a.added_items, **b.added_items},
         removed_items=a.removed_items + b.removed_items,
         relationship_changes=a.relationship_changes + b.relationship_changes,
