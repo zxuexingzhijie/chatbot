@@ -84,6 +84,8 @@ class GameApp:
             load_story_nodes(story_path) if story_path.exists() else {}
         )
         self._pending_story_hints: list[str] = []
+        self._ending_triggered: tuple[str, str] | None = None
+        self._game_over = False
 
         debug_config = config.get("debug", {})
         self._show_intent = debug_config.get("show_intent_json", False)
@@ -106,7 +108,7 @@ class GameApp:
         self._renderer.render_welcome(self.state)
         self._renderer.render_status_bar(self.state)
 
-        while True:
+        while not self._game_over:
             if self._dialogue_manager.is_active and self._dialogue_ctx is not None:
                 user_input = self._renderer.get_dialogue_input()
             else:
@@ -171,6 +173,22 @@ class GameApp:
                 self._renderer.console.print("\n[dim]目前没有新的剧情推进。[/]\n")
             else:
                 self._apply_story_results_sync(story_results)
+                if self._ending_triggered is not None:
+                    ending_id, ending_hint = self._ending_triggered
+                    memory_ctx = self._memory.build_context(
+                        actor=self.state.player_id,
+                        state=self.state,
+                    )
+                    import asyncio as _aio
+                    _aio.get_event_loop().run_until_complete(
+                        self._renderer.render_stream(
+                            self._narrator.stream_ending_narrative(
+                                ending_id, ending_hint, self.state, memory_ctx,
+                            )
+                        )
+                    )
+                    self._renderer.render_ending(ending_id)
+                    self._game_over = True
             self._update_story_active_since()
 
         elif command == "help":
@@ -269,6 +287,21 @@ class GameApp:
             story_results += self._story_engine.check_fail_forward(self.state)
             await self._apply_story_results(story_results)
             self._update_story_active_since()
+
+            if self._ending_triggered is not None:
+                ending_id, ending_hint = self._ending_triggered
+                memory_ctx = self._memory.build_context(
+                    actor=self.state.player_id,
+                    state=self.state,
+                )
+                await self._renderer.render_stream(
+                    self._narrator.stream_ending_narrative(
+                        ending_id, ending_hint, self.state, memory_ctx,
+                    )
+                )
+                self._renderer.render_ending(ending_id)
+                self._game_over = True
+                return
 
             memory_ctx = self._memory.build_context(
                 actor=result.target or self.state.player_id,
@@ -380,6 +413,8 @@ class GameApp:
             self._memory.apply_diff(r.diff, self.state)
             if r.narrator_hint:
                 self._pending_story_hints.append(r.narrator_hint)
+            if r.diff.new_endings:
+                self._ending_triggered = (r.diff.new_endings[0], r.narrator_hint or "")
 
     def _update_story_active_since(self) -> None:
         new_active = self._story_engine.get_active_nodes(self.state)

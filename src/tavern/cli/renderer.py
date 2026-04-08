@@ -182,6 +182,23 @@ class Renderer:
             )
         )
 
+    def render_ending(self, ending_id: str) -> None:
+        ending_titles = {
+            "good_ending": "🌅 黎明之路",
+            "bad_ending": "🌑 暗影独行",
+            "neutral_ending": "🚶 过客",
+        }
+        title = ending_titles.get(ending_id, f"结局: {ending_id}")
+        self.console.print()
+        self.console.print(
+            Panel(
+                f"[bold]{title}[/]\n\n"
+                "[dim]感谢你的冒险。输入任意键退出。[/]",
+                border_style="bright_yellow",
+                padding=(1, 2),
+            )
+        )
+
     def get_dialogue_input(self) -> str:
         try:
             return self.console.input("[bold cyan]对话▸[/] ").strip()

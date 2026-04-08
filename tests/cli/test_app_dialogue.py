@@ -184,6 +184,8 @@ class TestNarrativeIntegration:
         mock_story_engine.get_active_nodes = MagicMock(return_value=set())
         app._story_engine = mock_story_engine
         app._pending_story_hints = []
+        app._ending_triggered = None
+        app._game_over = False
 
         render_result_calls = []
         render_stream_calls = []
@@ -248,6 +250,8 @@ class TestNarrativeIntegration:
         mock_story_engine.get_active_nodes = MagicMock(return_value=set())
         app._story_engine = mock_story_engine
         app._pending_story_hints = []
+        app._ending_triggered = None
+        app._game_over = False
 
         render_result_calls = []
         render_stream_calls = []

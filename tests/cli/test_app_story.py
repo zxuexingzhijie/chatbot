@@ -39,6 +39,8 @@ def _make_app():
     app._save_manager = MagicMock()
     app._show_intent = False
     app._pending_story_hints = []
+    app._ending_triggered = None
+    app._game_over = False
     app._story_engine = MagicMock()
     app._story_engine.check = MagicMock(return_value=[])
     app._story_engine.check_fail_forward = MagicMock(return_value=[])
@@ -161,6 +163,58 @@ def test_pending_story_hints_cleared_after_handle_free_input():
     asyncio.run(app._handle_free_input("go nowhere"))
 
     assert app._pending_story_hints == []
+
+
+def test_apply_story_results_detects_ending():
+    app, state = _make_app()
+    from tavern.engine.story import StoryResult
+    from tavern.world.state import StateDiff
+
+    diff = StateDiff(
+        new_endings=("good_ending",),
+        quest_updates={"ending_good": {"_story_status": "completed"}},
+        turn_increment=0,
+    )
+    results = [StoryResult(node_id="ending_good", diff=diff, narrator_hint="温暖收束")]
+    asyncio.run(app._apply_story_results(results))
+    assert app._ending_triggered is not None
+    assert app._ending_triggered == ("good_ending", "温暖收束")
+
+
+def test_apply_story_results_no_ending():
+    app, state = _make_app()
+    from tavern.engine.story import StoryResult
+    from tavern.world.state import StateDiff
+
+    diff = StateDiff(quest_updates={"n1": {"_story_status": "completed"}}, turn_increment=0)
+    results = [StoryResult(node_id="n1", diff=diff, narrator_hint="some hint")]
+    asyncio.run(app._apply_story_results(results))
+    assert app._ending_triggered is None
+
+
+def test_game_over_flag_set_after_ending():
+    app, state = _make_app()
+    from tavern.engine.actions import ActionType
+    from tavern.engine.story import StoryResult
+    from tavern.world.models import ActionResult
+    from tavern.world.state import StateDiff
+
+    result = ActionResult(success=True, action=ActionType.MOVE, message="移动成功", target="cellar")
+    diff = StateDiff()
+    app._rules.validate = MagicMock(return_value=(result, diff))
+    app._parser.parse = AsyncMock(return_value=MagicMock(action=ActionType.MOVE))
+    app._state_manager.commit = MagicMock(return_value=state)
+
+    ending_diff = StateDiff(
+        new_endings=("good_ending",),
+        quest_updates={"ending_good": {"_story_status": "completed"}},
+        turn_increment=0,
+    )
+    ending_result = StoryResult(node_id="ending_good", diff=ending_diff, narrator_hint="温暖收束")
+    app._story_engine.check = MagicMock(return_value=[ending_result])
+
+    asyncio.run(app._handle_free_input("go cellar"))
+    assert app._game_over is True
 
 
 def test_app_import_registers_anthropic_provider():

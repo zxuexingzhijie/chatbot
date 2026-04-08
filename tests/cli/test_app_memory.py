@@ -128,6 +128,8 @@ class TestGameAppMemory:
         mock_story_engine.get_active_nodes = MagicMock(return_value=set())
         app._story_engine = mock_story_engine
         app._pending_story_hints = []
+        app._ending_triggered = None
+        app._game_over = False
 
         await app._handle_free_input("看看四周")
 
