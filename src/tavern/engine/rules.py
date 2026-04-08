@@ -409,7 +409,10 @@ def _merge_diffs(a: StateDiff, b: StateDiff) -> StateDiff:
         updated_locations={**a.updated_locations, **b.updated_locations},
         added_items={**a.added_items, **b.added_items},
         removed_items=a.removed_items + b.removed_items,
+        relationship_changes=a.relationship_changes + b.relationship_changes,
+        quest_updates={**a.quest_updates, **b.quest_updates},
         new_events=a.new_events + b.new_events,
+        story_active_since_updates={**a.story_active_since_updates, **b.story_active_since_updates},
         turn_increment=a.turn_increment + b.turn_increment,
     )
 
