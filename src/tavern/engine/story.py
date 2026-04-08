@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 import yaml
@@ -42,9 +42,24 @@ class NewEventSpec:
 
 
 @dataclass(frozen=True)
+class ItemPlacement:
+    item_id: str
+    to: str
+
+
+@dataclass(frozen=True)
+class ItemRemoval:
+    item_id: str
+    from_: str
+
+
+@dataclass(frozen=True)
 class StoryEffects:
     quest_updates: dict[str, dict]
     new_events: tuple[NewEventSpec, ...]
+    add_items: tuple[ItemPlacement, ...] = ()
+    remove_items: tuple[ItemRemoval, ...] = ()
+    character_stat_deltas: dict[str, dict[str, int]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -111,7 +126,42 @@ def _build_result(node: StoryNode, state: "WorldState") -> StoryResult:
         **node.effects.quest_updates,
         node.id: {"_story_status": "completed"},
     }
-    diff = StateDiff(new_events=events, quest_updates=quest_updates, turn_increment=0)
+
+    updated_characters: dict[str, dict] = {}
+    updated_locations: dict[str, dict] = {}
+
+    player = state.characters.get(state.player_id)
+    player_inv = list(player.inventory) if player else []
+
+    for placement in node.effects.add_items:
+        if placement.to == "inventory":
+            player_inv.append(placement.item_id)
+        else:
+            loc = state.locations.get(placement.to)
+            loc_items = list(loc.items) if loc else []
+            loc_items.append(placement.item_id)
+            updated_locations[placement.to] = {"items": tuple(loc_items)}
+
+    for removal in node.effects.remove_items:
+        if removal.from_ == "inventory":
+            player_inv = [i for i in player_inv if i != removal.item_id]
+        else:
+            loc = state.locations.get(removal.from_)
+            loc_items = list(loc.items) if loc else []
+            loc_items = [i for i in loc_items if i != removal.item_id]
+            updated_locations[removal.from_] = {"items": tuple(loc_items)}
+
+    if node.effects.add_items or node.effects.remove_items:
+        updated_characters[state.player_id] = {"inventory": tuple(player_inv)}
+
+    diff = StateDiff(
+        new_events=events,
+        quest_updates=quest_updates,
+        updated_characters=updated_characters,
+        updated_locations=updated_locations,
+        character_stat_deltas=dict(node.effects.character_stat_deltas),
+        turn_increment=0,
+    )
     return StoryResult(node_id=node.id, diff=diff, narrator_hint=node.narrator_hint)
 
 
@@ -203,9 +253,20 @@ def load_story_nodes(path: "Path") -> dict[str, StoryNode]:
             new_events = tuple(
                 NewEventSpec(**e) for e in (effects_raw.get("new_events") or [])
             )
+            add_items = tuple(
+                ItemPlacement(item_id=p["item_id"], to=p["to"])
+                for p in (effects_raw.get("add_items") or [])
+            )
+            remove_items = tuple(
+                ItemRemoval(item_id=r["item_id"], from_=r["from"])
+                for r in (effects_raw.get("remove_items") or [])
+            )
             effects = StoryEffects(
                 quest_updates=dict(effects_raw.get("quest_updates") or {}),
                 new_events=new_events,
+                add_items=add_items,
+                remove_items=remove_items,
+                character_stat_deltas=dict(effects_raw.get("character_stat_deltas") or {}),
             )
             ff_raw = entry.get("fail_forward")
             fail_forward = None

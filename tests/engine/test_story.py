@@ -353,3 +353,137 @@ nodes:
     assert ff is not None
     assert ff.after_turns == 5
     assert ff.hint_event.actor == "npc1"
+
+
+# ---------------------------------------------------------------------------
+# Extended effects: add_items, remove_items, character_stat_deltas
+# ---------------------------------------------------------------------------
+
+def test_build_result_add_items_to_inventory():
+    from tavern.engine.story import StoryEffects, StoryNode, ItemPlacement, NewEventSpec
+    effects = StoryEffects(
+        quest_updates={"q1": {"status": "done"}},
+        new_events=(),
+        add_items=(ItemPlacement(item_id="map_fragment", to="inventory"),),
+    )
+    node = StoryNode(
+        id="n1", act="act1", requires=(), repeatable=False,
+        trigger_mode="passive", conditions=(), effects=effects,
+        narrator_hint=None, fail_forward=None,
+    )
+    engine = _make_engine([node])
+    state = _make_state()
+    results = engine.check(state, "passive", MagicMock(), MagicMock())
+    diff = results[0].diff
+    assert "player" in diff.updated_characters
+    inv = diff.updated_characters["player"]["inventory"]
+    assert "map_fragment" in inv
+
+
+def test_build_result_add_items_to_location():
+    from tavern.engine.story import StoryEffects, StoryNode, ItemPlacement
+    effects = StoryEffects(
+        quest_updates={},
+        new_events=(),
+        add_items=(ItemPlacement(item_id="lost_amulet", to="backyard"),),
+    )
+    node = StoryNode(
+        id="n1", act="act1", requires=(), repeatable=False,
+        trigger_mode="passive", conditions=(), effects=effects,
+        narrator_hint=None, fail_forward=None,
+    )
+    engine = _make_engine([node])
+    state = _make_state()
+    backyard = MagicMock()
+    backyard.items = ()
+    state.locations = {"tavern": MagicMock(items=()), "backyard": backyard}
+    results = engine.check(state, "passive", MagicMock(), MagicMock())
+    diff = results[0].diff
+    assert "backyard" in diff.updated_locations
+    assert "lost_amulet" in diff.updated_locations["backyard"]["items"]
+
+
+def test_build_result_remove_items_from_inventory():
+    from tavern.engine.story import StoryEffects, StoryNode, ItemRemoval
+    effects = StoryEffects(
+        quest_updates={},
+        new_events=(),
+        remove_items=(ItemRemoval(item_id="lost_amulet", from_="inventory"),),
+    )
+    node = StoryNode(
+        id="n1", act="act1", requires=(), repeatable=False,
+        trigger_mode="passive", conditions=(), effects=effects,
+        narrator_hint=None, fail_forward=None,
+    )
+    engine = _make_engine([node])
+    state = _make_state()
+    state.characters["player"].inventory = ("lost_amulet", "old_notice")
+    results = engine.check(state, "passive", MagicMock(), MagicMock())
+    diff = results[0].diff
+    inv = diff.updated_characters["player"]["inventory"]
+    assert "lost_amulet" not in inv
+    assert "old_notice" in inv
+
+
+def test_build_result_character_stat_deltas():
+    from tavern.engine.story import StoryEffects, StoryNode
+    effects = StoryEffects(
+        quest_updates={},
+        new_events=(),
+        character_stat_deltas={"traveler": {"trust": 20}},
+    )
+    node = StoryNode(
+        id="n1", act="act1", requires=(), repeatable=False,
+        trigger_mode="passive", conditions=(), effects=effects,
+        narrator_hint=None, fail_forward=None,
+    )
+    engine = _make_engine([node])
+    state = _make_state()
+    results = engine.check(state, "passive", MagicMock(), MagicMock())
+    diff = results[0].diff
+    assert diff.character_stat_deltas == {"traveler": {"trust": 20}}
+
+
+def test_load_story_nodes_with_extended_effects(tmp_path):
+    from tavern.engine.story import load_story_nodes
+    yaml_content = """
+nodes:
+  - id: test_extended
+    act: act1
+    requires: []
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions: []
+    effects:
+      quest_updates:
+        q1: { status: done }
+      new_events:
+        - id: ev1
+          type: story
+          description: "something happened"
+      add_items:
+        - item_id: map_fragment
+          to: inventory
+        - item_id: lost_amulet
+          to: backyard
+      remove_items:
+        - item_id: old_key
+          from: inventory
+      character_stat_deltas:
+        traveler:
+          trust: 20
+"""
+    path = tmp_path / "story.yaml"
+    path.write_text(yaml_content, encoding="utf-8")
+    nodes = load_story_nodes(path)
+    assert "test_extended" in nodes
+    effects = nodes["test_extended"].effects
+    assert len(effects.add_items) == 2
+    assert effects.add_items[0].item_id == "map_fragment"
+    assert effects.add_items[0].to == "inventory"
+    assert effects.add_items[1].to == "backyard"
+    assert len(effects.remove_items) == 1
+    assert effects.remove_items[0].item_id == "old_key"
+    assert effects.remove_items[0].from_ == "inventory"
+    assert effects.character_stat_deltas == {"traveler": {"trust": 20}}
