@@ -78,3 +78,50 @@ def test_quest_condition():
     state.quests = {"cellar_mystery": {"status": "discovered"}}
     result = CONDITION_REGISTRY["quest"](cond, state, None, None)
     assert result is True
+
+
+def test_quest_count_gte_met():
+    from tavern.engine.story_conditions import CONDITION_REGISTRY
+    cond = ActivationCondition(type="quest_count", check="completed", operator=">=", value=2)
+    state = MagicMock()
+    state.quests = {
+        "q1": {"status": "completed"},
+        "q2": {"status": "completed"},
+        "q3": {"status": "active"},
+    }
+    assert CONDITION_REGISTRY["quest_count"](cond, state, None, None) is True
+
+
+def test_quest_count_gte_not_met():
+    from tavern.engine.story_conditions import CONDITION_REGISTRY
+    cond = ActivationCondition(type="quest_count", check="completed", operator=">=", value=3)
+    state = MagicMock()
+    state.quests = {
+        "q1": {"status": "completed"},
+        "q2": {"status": "active"},
+    }
+    assert CONDITION_REGISTRY["quest_count"](cond, state, None, None) is False
+
+
+def test_quest_count_exact_match():
+    from tavern.engine.story_conditions import CONDITION_REGISTRY
+    cond = ActivationCondition(type="quest_count", check="completed", operator="==", value=1)
+    state = MagicMock()
+    state.quests = {"q1": {"status": "completed"}}
+    assert CONDITION_REGISTRY["quest_count"](cond, state, None, None) is True
+
+
+def test_turn_count_gte_met():
+    from tavern.engine.story_conditions import CONDITION_REGISTRY
+    cond = ActivationCondition(type="turn_count", operator=">=", value=40)
+    state = MagicMock()
+    state.turn = 45
+    assert CONDITION_REGISTRY["turn_count"](cond, state, None, None) is True
+
+
+def test_turn_count_gte_not_met():
+    from tavern.engine.story_conditions import CONDITION_REGISTRY
+    cond = ActivationCondition(type="turn_count", operator=">=", value=40)
+    state = MagicMock()
+    state.turn = 20
+    assert CONDITION_REGISTRY["turn_count"](cond, state, None, None) is False

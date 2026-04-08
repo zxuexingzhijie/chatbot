@@ -56,3 +56,34 @@ def eval_event(cond: ActivationCondition, state, timeline: "EventTimeline", rela
 @register_condition("quest")
 def eval_quest(cond: ActivationCondition, state: "WorldState", timeline, relationships) -> bool:
     return ConditionEvaluator.evaluate(cond, state, timeline, relationships)
+
+
+def _compare(actual: int, operator: str, target: int) -> bool:
+    if operator == "==":
+        return actual == target
+    if operator == "!=":
+        return actual != target
+    if operator == ">":
+        return actual > target
+    if operator == "<":
+        return actual < target
+    if operator == ">=":
+        return actual >= target
+    if operator == "<=":
+        return actual <= target
+    return False
+
+
+@register_condition("quest_count")
+def eval_quest_count(cond: ActivationCondition, state: "WorldState", timeline, relationships) -> bool:
+    if cond.check is None or cond.operator is None or cond.value is None:
+        return False
+    count = sum(1 for q in state.quests.values() if q.get("status") == cond.check)
+    return _compare(count, cond.operator, cond.value)
+
+
+@register_condition("turn_count")
+def eval_turn_count(cond: ActivationCondition, state: "WorldState", timeline, relationships) -> bool:
+    if cond.operator is None or cond.value is None:
+        return False
+    return _compare(state.turn, cond.operator, cond.value)
