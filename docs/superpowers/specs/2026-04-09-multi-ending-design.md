@@ -99,7 +99,7 @@ def build_ending_prompt(
 `DialogueManager` 处理 story results 时检测 `diff.new_endings`：
 - 调用 narrator 的 ending 方法生成叙事
 - 用 Rich Panel 特殊样式渲染（标题 + 边框，区别于普通叙事）
-- 渲染后不退出游戏循环，玩家可继续 free roam
+- 渲染后退出游戏循环，显示结局达成信息
 
 ---
 
@@ -113,6 +113,8 @@ def build_ending_prompt(
 - `cellar_secret_revealed` 已完成（event: `secret_learned` exists）
 - `quest_count >= 2`（至少 2 条支线 status == completed）
 - relationship: traveler trust >= 20
+- event: `ending_bad_reached` check: not_exists
+- event: `ending_neutral_reached` check: not_exists
 
 **Effects**:
 - `trigger_ending: good_ending`
@@ -144,8 +146,10 @@ def build_ending_prompt(
 
 **Story Node**: `ending_bad`
 
-**触发条件**：
+**触发条件**（全部满足）：
 - event: `guest_betrayed` exists
+- event: `ending_good_reached` check: not_exists
+- event: `ending_neutral_reached` check: not_exists
 
 **Effects**:
 - `trigger_ending: bad_ending`
@@ -207,4 +211,5 @@ def build_ending_prompt(
 - 不做结局回放/收藏/成就系统
 - 不做结局统计面板（用户选择了纯叙事）
 - 不新增 NPC 或地图区域
-- 中结局不会阻断游戏 — 触发后标记但玩家可继续，可能后续触发好/坏结局
+- 三个结局互斥——条件中互相检查对方的 ending event not_exists
+- 结局触发后退出游戏循环，不再继续探索
