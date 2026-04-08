@@ -121,6 +121,7 @@ class TestGameAppMemory:
         app._parser.parse = AsyncMock(
             return_value=ActionRequest(action=ActionType.LOOK)
         )
+        app._save_manager = MagicMock()
 
         await app._handle_free_input("看看四周")
 
@@ -171,6 +172,7 @@ class TestGameAppMemory:
         app._state_manager = state_manager
         app._memory = mock_memory
         app._renderer = MagicMock()
+        app._save_manager = MagicMock()
 
         committed_diffs = []
         original_commit = state_manager.commit

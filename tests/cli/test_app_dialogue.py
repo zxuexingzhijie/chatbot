@@ -76,6 +76,7 @@ class TestGameAppDialogueFlow:
         app._state_manager = state_manager
         app._renderer = MagicMock()
         app._memory = MagicMock()
+        app._save_manager = MagicMock()
 
         app._apply_dialogue_end(mock_summary)
 
@@ -88,6 +89,7 @@ class TestGameAppDialogueFlow:
         app._state_manager = state_manager
         app._renderer = MagicMock()
         app._memory = MagicMock()
+        app._save_manager = MagicMock()
 
         app._apply_dialogue_end(mock_summary)
 
@@ -113,6 +115,7 @@ class TestGameAppDialogueFlow:
         app._renderer = MagicMock()
         app._dialogue_ctx = mock_dialogue_ctx
         app._memory = MagicMock()
+        app._save_manager = MagicMock()
 
         await app._process_dialogue_input("bye", mock_dialogue_ctx)
 
