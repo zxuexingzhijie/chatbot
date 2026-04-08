@@ -113,3 +113,28 @@ class TestStateManager:
         sample_state_manager.commit(diff2, action2)
         with pytest.raises(IndexError):
             sample_state_manager.redo()
+
+
+# --- story_active_since tests ---
+
+def test_state_diff_has_story_active_since_updates():
+    from tavern.world.state import StateDiff
+    diff = StateDiff(story_active_since_updates={"node1": 5})
+    assert diff.story_active_since_updates == {"node1": 5}
+
+
+def test_world_state_apply_merges_story_active_since():
+    from tavern.world.state import StateDiff, WorldState
+    from tavern.world.models import Character, CharacterRole, Location, ActionResult
+    from tavern.engine.actions import ActionType
+    state = WorldState(
+        turn=3,
+        player_id="player",
+        locations={"room": Location(id="room", name="R", description="d")},
+        characters={"player": Character(id="player", name="P", role=CharacterRole.PLAYER, location_id="room")},
+        story_active_since={"node_a": 1},
+    )
+    diff = StateDiff(story_active_since_updates={"node_b": 3}, turn_increment=0)
+    result = ActionResult(success=True, action=ActionType.LOOK, message="ok")
+    new_state = state.apply(diff, action=result)
+    assert new_state.story_active_since == {"node_a": 1, "node_b": 3}

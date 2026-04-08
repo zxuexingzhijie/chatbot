@@ -17,6 +17,7 @@ class StateDiff(BaseModel):
     relationship_changes: tuple[dict, ...] = ()
     quest_updates: dict[str, dict] = {}
     new_events: tuple[Event, ...] = ()
+    story_active_since_updates: dict[str, int] = {}
     turn_increment: int = 1
 
 
@@ -30,6 +31,7 @@ class WorldState(BaseModel):
     items: dict[str, Item] = {}
     relationships_snapshot: dict = {}
     quests: dict[str, dict] = {}
+    story_active_since: dict[str, int] = {}
     timeline: tuple[Event, ...] = ()
     last_action: ActionResult | None = None
 
@@ -43,6 +45,7 @@ class WorldState(BaseModel):
             "items": instance.items,
             "relationships_snapshot": instance.relationships_snapshot,
             "quests": instance.quests,
+            "story_active_since": instance.story_active_since,
         }
         for field_name, field_val in frozen_fields.items():
             if isinstance(field_val, dict) and not isinstance(field_val, MappingProxyType):
@@ -80,6 +83,11 @@ class WorldState(BaseModel):
             existing = new_quests.get(quest_id, {})
             new_quests[quest_id] = {**existing, **updates}
 
+        new_story_active_since = {
+            **dict(self.story_active_since),
+            **diff.story_active_since_updates,
+        }
+
         return WorldState(
             turn=self.turn + diff.turn_increment,
             player_id=self.player_id,
@@ -88,6 +96,7 @@ class WorldState(BaseModel):
             items=new_items,
             relationships_snapshot=self.relationships_snapshot,
             quests=new_quests,
+            story_active_since=new_story_active_since,
             timeline=new_timeline,
             last_action=action,
         )
