@@ -131,3 +131,33 @@ def test_apply_story_results_accumulates_narrator_hint():
     results = [StoryResult(node_id="n1", diff=diff, narrator_hint="spooky hint")]
     asyncio.run(app._apply_story_results(results))
     assert app._pending_story_hints == ["spooky hint"]
+
+
+def test_apply_story_results_calls_memory_apply_diff():
+    app, state = _make_app()
+    from tavern.engine.story import StoryResult
+    from tavern.world.state import StateDiff
+
+    diff = StateDiff(quest_updates={"n1": {"_story_status": "completed"}}, turn_increment=0)
+    results = [StoryResult(node_id="n1", diff=diff, narrator_hint=None)]
+    asyncio.run(app._apply_story_results(results))
+    app._memory.apply_diff.assert_called_once_with(diff, app.state)
+
+
+def test_pending_story_hints_cleared_after_handle_free_input():
+    app, state = _make_app()
+    from tavern.engine.actions import ActionType
+    from tavern.world.models import ActionResult
+    from tavern.world.state import StateDiff
+
+    # Pre-populate hints (simulates a previous turn that didn't clear)
+    app._pending_story_hints = ["leftover hint"]
+
+    result = ActionResult(success=False, action=ActionType.MOVE, message="失败")
+    diff = None
+    app._rules.validate = MagicMock(return_value=(result, diff))
+    app._parser.parse = AsyncMock(return_value=MagicMock(action=ActionType.MOVE))
+
+    asyncio.run(app._handle_free_input("go nowhere"))
+
+    assert app._pending_story_hints == []

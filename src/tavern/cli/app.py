@@ -241,6 +241,7 @@ class GameApp:
         if result.success and request.action in (
             ActionType.TALK, ActionType.PERSUADE
         ) and result.target:
+            self._update_story_active_since()
             try:
                 memory_ctx = self._memory.build_context(
                     actor=result.target,
@@ -273,12 +274,12 @@ class GameApp:
                 state=self.state,
             )
             combined_hint = "\n".join(self._pending_story_hints) or None
-            self._pending_story_hints.clear()
             await self._renderer.render_stream(
                 self._narrator.stream_narrative(result, self.state, memory_ctx, story_hint=combined_hint)
             )
         else:
             self._renderer.render_result(result)
+        self._pending_story_hints.clear()
         self._renderer.render_status_bar(self.state)
 
     async def _process_dialogue_input(
