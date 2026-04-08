@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from tavern.engine.actions import ActionType
 from tavern.narrator.narrator import Narrator
+from tavern.narrator.prompts import build_ending_prompt
 from tavern.world.models import ActionResult
 from tavern.world.state import WorldState
 
@@ -136,3 +137,72 @@ class TestNarrator:
 
         full_text = " ".join(captured)
         assert "旅行者" in full_text
+
+
+class TestEndingPrompt:
+    def test_build_ending_prompt_structure(self, sample_world_state):
+        messages = build_ending_prompt(
+            ending_id="good_ending",
+            narrator_hint="温暖收束",
+            state=sample_world_state,
+        )
+        assert len(messages) == 2
+        assert messages[0]["role"] == "system"
+        assert messages[1]["role"] == "user"
+        assert "结局" in messages[0]["content"]
+        assert "good_ending" in messages[1]["content"]
+        assert "温暖收束" in messages[1]["content"]
+
+    def test_build_ending_prompt_includes_quests(self, sample_world_state):
+        messages = build_ending_prompt(
+            ending_id="good_ending",
+            narrator_hint="hint",
+            state=sample_world_state,
+        )
+        system_content = messages[0]["content"]
+        assert "任务" in system_content or "quest" in system_content.lower()
+
+    def test_build_ending_prompt_with_memory(self, sample_world_state):
+        memory = MagicMock()
+        memory.recent_events = "玩家揭开了密道的秘密"
+        memory.relationship_summary = "酒保: 信任 30"
+        messages = build_ending_prompt(
+            ending_id="good_ending",
+            narrator_hint="hint",
+            state=sample_world_state,
+            memory=memory,
+        )
+        system_content = messages[0]["content"]
+        assert "密道" in system_content
+        assert "酒保" in system_content
+
+
+class TestEndingNarrative:
+    @pytest.mark.asyncio
+    async def test_stream_ending_yields_chunks(self, narrator, mock_llm_service, sample_world_state):
+        mock_llm_service.stream_narrative = MagicMock(
+            return_value=_async_gen("夜色温柔，", "冒险者踏上新的旅途。")
+        )
+        chunks = []
+        async for chunk in narrator.stream_ending_narrative(
+            ending_id="good_ending",
+            narrator_hint="温暖收束",
+            state=sample_world_state,
+        ):
+            chunks.append(chunk)
+        assert chunks == ["夜色温柔，", "冒险者踏上新的旅途。"]
+
+    @pytest.mark.asyncio
+    async def test_stream_ending_fallback_on_error(self, narrator, mock_llm_service, sample_world_state):
+        mock_llm_service.stream_narrative = MagicMock(
+            return_value=_raise_on_iter()
+        )
+        chunks = []
+        async for chunk in narrator.stream_ending_narrative(
+            ending_id="good_ending",
+            narrator_hint="温暖收束",
+            state=sample_world_state,
+        ):
+            chunks.append(chunk)
+        assert len(chunks) == 1
+        assert "good_ending" in chunks[0]

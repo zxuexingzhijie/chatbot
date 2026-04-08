@@ -53,3 +53,21 @@ class Narrator:
             player_name=player.name,
             target=target_name,
         )
+
+    async def stream_ending_narrative(
+        self,
+        ending_id: str,
+        narrator_hint: str,
+        state: WorldState,
+        memory_ctx: MemoryContext | None = None,
+    ) -> AsyncGenerator[str, None]:
+        try:
+            from tavern.narrator.prompts import build_ending_prompt
+
+            messages = build_ending_prompt(ending_id, narrator_hint, state, memory_ctx)
+            system_prompt = messages[0]["content"]
+            user_content = messages[1]["content"]
+            async for chunk in self._llm.stream_narrative(system_prompt, user_content):
+                yield chunk
+        except Exception:
+            yield f"[结局: {ending_id}]"
