@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, AsyncGenerator
 
-from tavern.narrator.prompts import NarrativeContext, build_narrative_prompt
+from tavern.narrator.prompts import NarrativeContext, build_ending_prompt, build_narrative_prompt
 from tavern.world.models import ActionResult
 from tavern.world.state import WorldState
 
@@ -62,8 +62,6 @@ class Narrator:
         memory_ctx: MemoryContext | None = None,
     ) -> AsyncGenerator[str, None]:
         try:
-            from tavern.narrator.prompts import build_ending_prompt
-
             messages = build_ending_prompt(ending_id, narrator_hint, state, memory_ctx)
             system_prompt = messages[0]["content"]
             user_content = messages[1]["content"]
