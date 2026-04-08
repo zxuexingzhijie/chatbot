@@ -93,6 +93,7 @@ def test_spawn_item_to_location():
     diff, msg = effect_spawn_item(eff, "rusty_box", state)
     new_items = diff.updated_locations["bar_area"]["items"]
     assert "spare_key" in new_items
+    assert "出现在了" in msg
 
 
 def test_spawn_item_unknown_item_id_skips():
@@ -116,6 +117,7 @@ def test_story_event_effect_creates_event():
     diff, msg = effect_story_event(eff, "rusty_box", state)
     assert len(diff.new_events) == 1
     assert diff.new_events[0].type == "story"
+    assert diff.new_events[0].id == "box_opened_t3"
     assert "铁盒打开了" in diff.new_events[0].description
     assert msg is None
 

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import pytest
 from tavern.world.models import EventSpec, UseEffect, Item
 
 
@@ -110,3 +111,9 @@ def test_loader_builds_item_with_story_event_effect():
     assert len(box.use_effects) == 1
     assert box.use_effects[0].event is not None
     assert box.use_effects[0].event.id == "box_opened"
+
+
+def test_use_effect_rejects_invalid_type():
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        UseEffect(type="unlcok")

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from enum import Enum
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -78,10 +78,13 @@ class EventSpec(BaseModel):
     actor: str | None = None
 
 
+UseEffectType = Literal["unlock", "consume", "spawn_item", "story_event"]
+
+
 class UseEffect(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    type: str
+    type: UseEffectType
     location: str | None = None
     exit_direction: str | None = None
     item_id: str | None = None

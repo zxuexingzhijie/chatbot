@@ -4,6 +4,7 @@ import logging
 import uuid
 
 from tavern.engine.actions import ActionType
+from tavern.engine.use_effects import USE_EFFECT_REGISTRY
 from tavern.world.models import ActionRequest, ActionResult, Event
 from tavern.world.state import StateDiff, WorldState
 
@@ -332,8 +333,6 @@ def _handle_custom(request: ActionRequest, state: WorldState):
 
 
 def _handle_use(request: ActionRequest, state: WorldState):
-    from tavern.engine.use_effects import USE_EFFECT_REGISTRY
-
     item_id = request.target
 
     if item_id is None:
@@ -384,16 +383,25 @@ def _handle_use(request: ActionRequest, state: WorldState):
     combined_diff = StateDiff(turn_increment=1)
     messages = []
     current_state = state
+    any_executed = False
     for eff in item.use_effects:
         fn = USE_EFFECT_REGISTRY.get(eff.type)
         if fn is None:
             logger.warning("未知 use_effect 类型: %s（物品: %s）", eff.type, item_id)
             continue
         diff, msg = fn(eff, item_id, current_state)
+        any_executed = True
         combined_diff = _merge_diffs(combined_diff, diff)
         current_state = current_state.apply(diff)
         if msg:
             messages.append(msg)
+
+    if not any_executed:
+        return (
+            ActionResult(success=False, action=ActionType.USE,
+                         message=f"「{item.name}」无法使用。", target=item_id),
+            None,
+        )
 
     final_message = "\n".join(messages) if messages else f"你使用了「{item.name}」。"
     return (
@@ -405,11 +413,10 @@ def _handle_use(request: ActionRequest, state: WorldState):
 
 def _merge_diffs(a: StateDiff, b: StateDiff) -> StateDiff:
     def _deep_merge(x: dict, y: dict) -> dict:
-        """Merge two dicts; when both have same key, merge the inner dicts."""
         result = dict(x)
         for k, v in y.items():
             if k in result and isinstance(result[k], dict) and isinstance(v, dict):
-                result[k] = {**result[k], **v}
+                result[k] = _deep_merge(result[k], v)
             else:
                 result[k] = v
         return result

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import uuid
 from typing import Callable
 
 from tavern.world.models import Event, UseEffect
@@ -80,6 +79,7 @@ def effect_spawn_item(eff: UseEffect, item_id: str, state: WorldState) -> tuple[
             updated_characters={state.player_id: {"inventory": new_inventory}},
             turn_increment=0,
         )
+        return diff, f"你获得了「{spawned.name}」。"
     else:
         if eff.location is None:
             logger.warning("spawn_item effect: spawn_to_inventory=False but no location (item: %s)", item_id)
@@ -93,8 +93,8 @@ def effect_spawn_item(eff: UseEffect, item_id: str, state: WorldState) -> tuple[
             updated_locations={eff.location: {"items": new_items}},
             turn_increment=0,
         )
-
-    return diff, f"你获得了「{spawned.name}」。"
+        loc_name = loc.name
+        return diff, f"「{spawned.name}」出现在了{loc_name}。"
 
 
 @register_effect("story_event")
@@ -105,7 +105,7 @@ def effect_story_event(eff: UseEffect, item_id: str, state: WorldState) -> tuple
 
     actor = eff.event.actor or state.player_id
     event = Event(
-        id=f"{eff.event.id}_{uuid.uuid4().hex[:8]}",
+        id=f"{eff.event.id}_t{state.turn}",
         turn=state.turn,
         type=eff.event.type,
         actor=actor,
