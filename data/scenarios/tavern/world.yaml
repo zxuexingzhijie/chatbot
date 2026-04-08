@@ -140,3 +140,18 @@ items:
         location: bar_area
         exit_direction: down
       - type: consume
+
+  lost_amulet:
+    name: 银质护身符
+    description: 一个精致的银质护身符，表面刻着古老的符文，散发着微弱的光芒
+    portable: true
+
+  map_fragment:
+    name: 地图碎片
+    description: 一张泛黄的羊皮纸碎片，上面标注着城镇地下的密道走向
+    portable: true
+
+  guest_letter:
+    name: 神秘信件
+    description: 一封密封的信件，火漆上印着一个陌生的徽章。信纸透出淡淡的墨香
+    portable: true
