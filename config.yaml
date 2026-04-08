@@ -15,6 +15,28 @@ llm:
     timeout: 30.0
     stream: true
 
+# ── Ollama (local) ──────────────────────────────────────────────────────────
+# Ollama is OpenAI-compatible. Use provider: openai with a custom base_url.
+# Start Ollama locally: https://ollama.com
+# Example:
+#
+# llm:
+#   intent:
+#     provider: openai
+#     model: llama3.2
+#     base_url: http://localhost:11434/v1
+#     api_key: ollama        # Ollama requires a non-empty string; value is ignored
+#     temperature: 0.1
+#     max_tokens: 200
+#   narrative:
+#     provider: openai
+#     model: llama3.2
+#     base_url: http://localhost:11434/v1
+#     api_key: ollama
+#     temperature: 0.8
+#     max_tokens: 500
+# ───────────────────────────────────────────────────────────────────────────
+
 game:
   auto_save_interval: 5
   undo_history_size: 50
