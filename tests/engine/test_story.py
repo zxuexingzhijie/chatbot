@@ -536,3 +536,92 @@ def test_build_result_location_only_no_spurious_inventory():
     results = engine.check(state, "passive", MagicMock(), MagicMock())
     diff = results[0].diff
     assert diff.updated_characters == {}
+
+
+# ---------------------------------------------------------------------------
+# trigger_ending
+# ---------------------------------------------------------------------------
+
+def test_build_result_trigger_ending():
+    from tavern.engine.story import StoryEffects, StoryNode
+    effects = StoryEffects(
+        quest_updates={"main_story": {"status": "good_ending"}},
+        new_events=(),
+        trigger_ending="good_ending",
+    )
+    node = StoryNode(
+        id="ending_good", act="act1", requires=(), repeatable=False,
+        trigger_mode="passive", conditions=(), effects=effects,
+        narrator_hint="温暖收束", fail_forward=None,
+    )
+    engine = _make_engine([node])
+    state = _make_state()
+    results = engine.check(state, "passive", MagicMock(), MagicMock())
+    diff = results[0].diff
+    assert diff.new_endings == ("good_ending",)
+
+
+def test_build_result_no_trigger_ending():
+    from tavern.engine.story import StoryEffects, StoryNode
+    effects = StoryEffects(
+        quest_updates={"q1": {"status": "done"}},
+        new_events=(),
+    )
+    node = StoryNode(
+        id="n1", act="act1", requires=(), repeatable=False,
+        trigger_mode="passive", conditions=(), effects=effects,
+        narrator_hint=None, fail_forward=None,
+    )
+    engine = _make_engine([node])
+    state = _make_state()
+    results = engine.check(state, "passive", MagicMock(), MagicMock())
+    diff = results[0].diff
+    assert diff.new_endings == ()
+
+
+def test_load_story_nodes_with_trigger_ending(tmp_path):
+    from tavern.engine.story import load_story_nodes
+    yaml_content = """
+nodes:
+  - id: ending_good
+    act: act1
+    requires: []
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions: []
+    effects:
+      quest_updates:
+        main_story: { status: good_ending }
+      new_events:
+        - id: ending_good_reached
+          type: ending
+          description: "好结局达成"
+      trigger_ending: good_ending
+"""
+    path = tmp_path / "story.yaml"
+    path.write_text(yaml_content, encoding="utf-8")
+    nodes = load_story_nodes(path)
+    assert "ending_good" in nodes
+    assert nodes["ending_good"].effects.trigger_ending == "good_ending"
+
+
+def test_load_story_nodes_without_trigger_ending(tmp_path):
+    from tavern.engine.story import load_story_nodes
+    yaml_content = """
+nodes:
+  - id: normal_node
+    act: act1
+    requires: []
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions: []
+    effects:
+      quest_updates: {}
+      new_events: []
+"""
+    path = tmp_path / "story.yaml"
+    path.write_text(yaml_content, encoding="utf-8")
+    nodes = load_story_nodes(path)
+    assert nodes["normal_node"].effects.trigger_ending is None

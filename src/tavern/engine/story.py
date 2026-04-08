@@ -60,6 +60,7 @@ class StoryEffects:
     add_items: tuple[ItemPlacement, ...] = ()
     remove_items: tuple[ItemRemoval, ...] = ()
     character_stat_deltas: dict[str, dict[str, int]] = field(default_factory=dict)
+    trigger_ending: str | None = None
 
 
 @dataclass(frozen=True)
@@ -161,12 +162,15 @@ def _build_result(node: StoryNode, state: "WorldState") -> StoryResult:
     if inv_changed:
         updated_characters[state.player_id] = {"inventory": tuple(player_inv)}
 
+    new_endings = (node.effects.trigger_ending,) if node.effects.trigger_ending else ()
+
     diff = StateDiff(
         new_events=events,
         quest_updates=quest_updates,
         updated_characters=updated_characters,
         updated_locations=updated_locations,
         character_stat_deltas=dict(node.effects.character_stat_deltas),
+        new_endings=new_endings,
         turn_increment=0,
     )
     return StoryResult(node_id=node.id, diff=diff, narrator_hint=node.narrator_hint)
@@ -274,6 +278,7 @@ def load_story_nodes(path: "Path") -> dict[str, StoryNode]:
                 add_items=add_items,
                 remove_items=remove_items,
                 character_stat_deltas=dict(effects_raw.get("character_stat_deltas") or {}),
+                trigger_ending=effects_raw.get("trigger_ending"),
             )
             ff_raw = entry.get("fail_forward")
             fail_forward = None
