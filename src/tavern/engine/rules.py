@@ -439,6 +439,7 @@ def _merge_diffs(a: StateDiff, b: StateDiff) -> StateDiff:
         relationship_changes=a.relationship_changes + b.relationship_changes,
         quest_updates={**a.quest_updates, **b.quest_updates},
         new_events=a.new_events + b.new_events,
+        new_endings=a.new_endings + b.new_endings,
         story_active_since_updates={**a.story_active_since_updates, **b.story_active_since_updates},
         character_stat_deltas=_merge_stat_deltas(a.character_stat_deltas, b.character_stat_deltas),
         turn_increment=a.turn_increment + b.turn_increment,

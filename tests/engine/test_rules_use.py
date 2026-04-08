@@ -170,3 +170,13 @@ def test_merge_diffs_character_stat_deltas_different_chars():
     merged = _merge_diffs(a, b)
     assert merged.character_stat_deltas["npc1"]["trust"] == 10
     assert merged.character_stat_deltas["npc2"]["trust"] == 5
+
+
+def test_merge_diffs_new_endings():
+    from tavern.engine.rules import _merge_diffs
+    from tavern.world.state import StateDiff
+
+    a = StateDiff(new_endings=("good_ending",), turn_increment=0)
+    b = StateDiff(new_endings=("bad_ending",), turn_increment=0)
+    merged = _merge_diffs(a, b)
+    assert merged.new_endings == ("good_ending", "bad_ending")

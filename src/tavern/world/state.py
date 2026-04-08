@@ -19,6 +19,7 @@ class StateDiff(BaseModel):
     new_events: tuple[Event, ...] = ()
     story_active_since_updates: dict[str, int] = {}
     character_stat_deltas: dict[str, dict[str, int]] = {}
+    new_endings: tuple[str, ...] = ()
     turn_increment: int = 1
 
 
@@ -34,6 +35,7 @@ class WorldState(BaseModel):
     quests: dict[str, dict] = {}
     story_active_since: dict[str, int] = {}
     timeline: tuple[Event, ...] = ()
+    endings_reached: tuple[str, ...] = ()
     last_action: ActionResult | None = None
 
     @model_validator(mode="wrap")
@@ -98,6 +100,8 @@ class WorldState(BaseModel):
             **diff.story_active_since_updates,
         }
 
+        new_endings_reached = self.endings_reached + diff.new_endings
+
         return WorldState(
             turn=self.turn + diff.turn_increment,
             player_id=self.player_id,
@@ -108,6 +112,7 @@ class WorldState(BaseModel):
             quests=new_quests,
             story_active_since=new_story_active_since,
             timeline=new_timeline,
+            endings_reached=new_endings_reached,
             last_action=action,
         )
 

@@ -192,3 +192,23 @@ def test_world_state_apply_story_active_since_overwrite():
     result = ActionResult(success=True, action=ActionType.LOOK, message="ok")
     new_state = state.apply(diff, action=result)
     assert new_state.story_active_since["node_a"] == 10
+
+
+class TestEndingsReached:
+    def test_apply_new_endings_from_empty(self, sample_world_state):
+        diff = StateDiff(new_endings=("good_ending",), turn_increment=0)
+        new_state = sample_world_state.apply(diff)
+        assert new_state.endings_reached == ("good_ending",)
+        assert sample_world_state.endings_reached == ()
+
+    def test_apply_new_endings_appends(self, sample_world_state):
+        diff1 = StateDiff(new_endings=("neutral_ending",), turn_increment=0)
+        state1 = sample_world_state.apply(diff1)
+        diff2 = StateDiff(new_endings=("good_ending",), turn_increment=0)
+        state2 = state1.apply(diff2)
+        assert state2.endings_reached == ("neutral_ending", "good_ending")
+
+    def test_apply_no_new_endings_unchanged(self, sample_world_state):
+        diff = StateDiff(turn_increment=1)
+        new_state = sample_world_state.apply(diff)
+        assert new_state.endings_reached == ()
