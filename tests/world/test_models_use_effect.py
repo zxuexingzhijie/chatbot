@@ -1,5 +1,4 @@
 from __future__ import annotations
-import pytest
 from tavern.world.models import EventSpec, UseEffect, Item
 
 
@@ -53,3 +52,14 @@ def test_item_with_use_effects_roundtrip():
 def test_item_use_effects_default_empty():
     item = Item(id="x", name="X", description="d")
     assert item.use_effects == ()
+
+
+def test_use_effect_spawn_to_inventory_default():
+    assert UseEffect(type="spawn_item").spawn_to_inventory is True
+
+
+def test_use_effect_spawn_to_inventory_false_roundtrip():
+    eff = UseEffect(type="spawn_item", item_id="x", spawn_to_inventory=False)
+    data = eff.model_dump()
+    restored = UseEffect(**data)
+    assert restored.spawn_to_inventory is False
