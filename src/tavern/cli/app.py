@@ -174,7 +174,7 @@ class GameApp:
                 self._renderer.console.print("\n[red]请先结束当前对话再加载存档。[/]\n")
                 return
             try:
-                loaded_state = self._save_manager.load(slot)
+                loaded_state, timestamp = self._save_manager.load(slot)
                 self._state_manager = StateManager(
                     initial_state=loaded_state,
                     max_history=self._game_config.get("undo_history_size", 50),
@@ -185,9 +185,6 @@ class GameApp:
                     skills_dir=skills_dir if skills_dir.exists() else None,
                 )
                 self._dialogue_ctx = None
-                import json as _json
-                save_path = self._save_manager._saves_dir / f"{slot}.json"
-                timestamp = _json.loads(save_path.read_text(encoding="utf-8")).get("timestamp", "")
                 self._renderer.render_load_success(slot, timestamp)
                 self._renderer.render_status_bar(self.state)
             except (FileNotFoundError, ValueError) as e:

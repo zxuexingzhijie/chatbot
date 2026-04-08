@@ -5,9 +5,6 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from types import MappingProxyType
-from typing import Any
-
 from tavern.world.state import WorldState
 
 logger = logging.getLogger(__name__)
@@ -15,7 +12,8 @@ logger = logging.getLogger(__name__)
 SAVE_VERSION = 1
 
 
-def _mapping_proxy_fallback(obj: Any) -> Any:
+def _mappingproxy_serializer(obj: object) -> object:
+    from types import MappingProxyType
     if isinstance(obj, MappingProxyType):
         return dict(obj)
     raise ValueError(f"Cannot serialize {type(obj)}")
@@ -40,7 +38,7 @@ class SaveManager:
             "version": SAVE_VERSION,
             "timestamp": timestamp,
             "slot": slot,
-            "state": json.loads(state.model_dump_json(fallback=_mapping_proxy_fallback)),
+            "state": json.loads(state.model_dump_json(fallback=_mappingproxy_serializer)),
         }
         path.write_text(json.dumps(envelope, ensure_ascii=False, indent=2), encoding="utf-8")
         return path
@@ -65,7 +63,7 @@ class SaveManager:
     def exists(self, slot: str) -> bool:
         return (self._saves_dir / f"{slot}.json").exists()
 
-    def load(self, slot: str = "autosave") -> WorldState:
+    def load(self, slot: str = "autosave") -> tuple[WorldState, str]:
         path = self._saves_dir / f"{slot}.json"
         if not path.exists():
             raise FileNotFoundError(f"存档不存在：{slot}")
@@ -75,4 +73,4 @@ class SaveManager:
             raise ValueError(f"存档文件损坏：{slot}") from exc
         if data.get("version") != SAVE_VERSION:
             raise ValueError("存档版本不兼容，请重新开始游戏")
-        return WorldState.model_validate(data["state"])
+        return WorldState.model_validate(data["state"]), data.get("timestamp", "")

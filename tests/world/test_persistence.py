@@ -64,10 +64,11 @@ def test_saves_dir_created_on_first_save(tmp_path, minimal_state):
 def test_save_load_roundtrip(tmp_path, minimal_state):
     mgr = SaveManager(tmp_path / "saves")
     mgr.save(minimal_state, "autosave")
-    loaded = mgr.load("autosave")
+    loaded, timestamp = mgr.load("autosave")
     assert loaded.turn == minimal_state.turn
     assert loaded.player_id == minimal_state.player_id
     assert loaded.characters["player"].stats["hp"] == 100
+    assert "T" in timestamp  # ISO 8601
 
 
 def test_load_nonexistent_slot(tmp_path):
