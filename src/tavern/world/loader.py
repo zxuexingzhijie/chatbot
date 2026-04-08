@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from tavern.world.models import Character, CharacterRole, Exit, Item, Location
+from tavern.world.models import Character, CharacterRole, EventSpec, Exit, Item, Location, UseEffect
 from tavern.world.state import WorldState
 
 
@@ -53,28 +53,26 @@ def _build_locations(raw: dict) -> dict[str, Location]:
 
 
 def _build_items(raw: dict) -> dict[str, Item]:
-    from tavern.world.models import EventSpec, UseEffect
     items: dict[str, Item] = {}
     for item_id, data in raw.items():
-        use_effects = []
-        for eff_data in data.get("use_effects", []):
-            event_data = eff_data.get("event")
-            event = EventSpec(**event_data) if event_data else None
-            use_effects.append(UseEffect(
-                type=eff_data["type"],
-                location=eff_data.get("location"),
-                exit_direction=eff_data.get("exit_direction"),
-                item_id=eff_data.get("item_id"),
-                spawn_to_inventory=eff_data.get("spawn_to_inventory", True),
-                event=event,
-            ))
+        use_effects = tuple(
+            UseEffect(
+                type=e["type"],
+                location=e.get("location"),
+                exit_direction=e.get("exit_direction"),
+                item_id=e.get("item_id"),
+                spawn_to_inventory=e.get("spawn_to_inventory", True),
+                event=EventSpec(**e["event"]) if e.get("event") else None,
+            )
+            for e in data.get("use_effects", [])
+        )
         items[item_id] = Item(
             id=item_id,
             name=data["name"],
             description=data["description"],
             portable=data.get("portable", True),
             usable_with=tuple(data.get("usable_with", [])),
-            use_effects=tuple(use_effects),
+            use_effects=use_effects,
         )
     return items
 
