@@ -118,8 +118,9 @@ class GameApp:
                 await self._process_dialogue_input(user_input, self._dialogue_ctx)
                 continue
 
-            first_word = command.split()[0] if command.split() else ""
-            slot_arg = command.split()[1] if len(command.split()) > 1 else "autosave"
+            parts = user_input.strip().split()
+            first_word = parts[0].lower() if parts else ""
+            slot_arg = parts[1] if len(parts) > 1 else "autosave"
 
             if first_word in SYSTEM_COMMANDS:
                 self._handle_system_command(first_word, slot_arg)
@@ -172,24 +173,22 @@ class GameApp:
         elif command == "load":
             if self._dialogue_manager.is_active:
                 self._renderer.console.print("\n[red]请先结束当前对话再加载存档。[/]\n")
-                return
-            try:
-                loaded_state, timestamp = self._save_manager.load(slot)
-                self._state_manager = StateManager(
-                    initial_state=loaded_state,
-                    max_history=self._game_config.get("undo_history_size", 50),
-                )
-                skills_dir = self._scenario_path / "skills"
-                self._memory = MemorySystem(
-                    state=loaded_state,
-                    skills_dir=skills_dir if skills_dir.exists() else None,
-                )
-                self._dialogue_ctx = None
-                self._renderer.render_load_success(slot, timestamp)
-                self._renderer.render_status_bar(self.state)
-            except (FileNotFoundError, ValueError) as e:
-                self._renderer.console.print(f"\n[red]{e}[/]\n")
-            return
+            else:
+                try:
+                    loaded_state, timestamp = self._save_manager.load(slot)
+                    self._state_manager = StateManager(
+                        initial_state=loaded_state,
+                        max_history=self._game_config.get("undo_history_size", 50),
+                    )
+                    skills_dir = self._scenario_path / "skills"
+                    self._memory = MemorySystem(
+                        state=loaded_state,
+                        skills_dir=skills_dir if skills_dir.exists() else None,
+                    )
+                    self._dialogue_ctx = None
+                    self._renderer.render_load_success(slot, timestamp)
+                except (FileNotFoundError, ValueError) as e:
+                    self._renderer.console.print(f"\n[red]{e}[/]\n")
 
         self._renderer.render_status_bar(self.state)
 
@@ -216,8 +215,11 @@ class GameApp:
             self._state_manager.commit(diff, result)
             self._memory.apply_diff(diff, self.state)
             if result.success and request.action not in (ActionType.TALK, ActionType.PERSUADE):
-                new_state = self._memory.sync_to_state(self.state)
-                self._save_manager.save(new_state, "autosave")
+                try:
+                    new_state = self._memory.sync_to_state(self.state)
+                    self._save_manager.save(new_state, "autosave")
+                except OSError as e:
+                    logger.warning("autosave failed: %s", e)
 
         if result.success and request.action in (
             ActionType.TALK, ActionType.PERSUADE
@@ -327,5 +329,8 @@ class GameApp:
             ),
         )
         self._memory.apply_diff(event_diff, self.state)
-        new_state = self._memory.sync_to_state(self.state)
-        self._save_manager.save(new_state, "autosave")
+        try:
+            new_state = self._memory.sync_to_state(self.state)
+            self._save_manager.save(new_state, "autosave")
+        except OSError as e:
+            logger.warning("autosave failed: %s", e)
