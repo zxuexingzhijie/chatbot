@@ -487,3 +487,52 @@ nodes:
     assert effects.remove_items[0].item_id == "old_key"
     assert effects.remove_items[0].from_ == "inventory"
     assert effects.character_stat_deltas == {"traveler": {"trust": 20}}
+
+
+def test_build_result_multiple_add_items_same_location():
+    from tavern.engine.story import StoryEffects, StoryNode, ItemPlacement
+    effects = StoryEffects(
+        quest_updates={},
+        new_events=(),
+        add_items=(
+            ItemPlacement(item_id="item_a", to="backyard"),
+            ItemPlacement(item_id="item_b", to="backyard"),
+        ),
+    )
+    node = StoryNode(
+        id="n1", act="act1", requires=(), repeatable=False,
+        trigger_mode="passive", conditions=(), effects=effects,
+        narrator_hint=None, fail_forward=None,
+    )
+    engine = _make_engine([node])
+    state = _make_state()
+    backyard = MagicMock()
+    backyard.items = ()
+    state.locations = {"tavern": MagicMock(items=()), "backyard": backyard}
+    results = engine.check(state, "passive", MagicMock(), MagicMock())
+    diff = results[0].diff
+    loc_items = diff.updated_locations["backyard"]["items"]
+    assert "item_a" in loc_items
+    assert "item_b" in loc_items
+
+
+def test_build_result_location_only_no_spurious_inventory():
+    from tavern.engine.story import StoryEffects, StoryNode, ItemPlacement
+    effects = StoryEffects(
+        quest_updates={},
+        new_events=(),
+        add_items=(ItemPlacement(item_id="lost_amulet", to="backyard"),),
+    )
+    node = StoryNode(
+        id="n1", act="act1", requires=(), repeatable=False,
+        trigger_mode="passive", conditions=(), effects=effects,
+        narrator_hint=None, fail_forward=None,
+    )
+    engine = _make_engine([node])
+    state = _make_state()
+    backyard = MagicMock()
+    backyard.items = ()
+    state.locations = {"tavern": MagicMock(items=()), "backyard": backyard}
+    results = engine.check(state, "passive", MagicMock(), MagicMock())
+    diff = results[0].diff
+    assert diff.updated_characters == {}
