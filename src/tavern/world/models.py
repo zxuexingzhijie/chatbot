@@ -69,6 +69,26 @@ class Location(BaseModel):
         return instance
 
 
+class EventSpec(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    type: str
+    description: str
+    actor: str | None = None
+
+
+class UseEffect(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    type: str
+    location: str | None = None
+    exit_direction: str | None = None
+    item_id: str | None = None
+    spawn_to_inventory: bool = True
+    event: EventSpec | None = None
+
+
 class Item(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -77,6 +97,7 @@ class Item(BaseModel):
     description: str
     portable: bool = True
     usable_with: tuple[str, ...] = ()
+    use_effects: tuple[UseEffect, ...] = ()
 
 
 class Event(BaseModel):
