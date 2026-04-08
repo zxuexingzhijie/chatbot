@@ -152,3 +152,21 @@ def test_unlock_and_consume_merge(use_state):
     assert "player" in combined.updated_characters
     new_inv = combined.updated_characters["player"]["inventory"]
     assert "cellar_key" not in new_inv
+
+
+def test_merge_diffs_character_stat_deltas_sum():
+    from tavern.engine.rules import _merge_diffs
+    a = StateDiff(character_stat_deltas={"npc1": {"trust": 10}})
+    b = StateDiff(character_stat_deltas={"npc1": {"trust": 5, "fear": 3}})
+    merged = _merge_diffs(a, b)
+    assert merged.character_stat_deltas["npc1"]["trust"] == 15
+    assert merged.character_stat_deltas["npc1"]["fear"] == 3
+
+
+def test_merge_diffs_character_stat_deltas_different_chars():
+    from tavern.engine.rules import _merge_diffs
+    a = StateDiff(character_stat_deltas={"npc1": {"trust": 10}})
+    b = StateDiff(character_stat_deltas={"npc2": {"trust": 5}})
+    merged = _merge_diffs(a, b)
+    assert merged.character_stat_deltas["npc1"]["trust"] == 10
+    assert merged.character_stat_deltas["npc2"]["trust"] == 5

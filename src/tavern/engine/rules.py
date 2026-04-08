@@ -421,6 +421,16 @@ def _merge_diffs(a: StateDiff, b: StateDiff) -> StateDiff:
                 result[k] = v
         return result
 
+    def _merge_stat_deltas(x: dict, y: dict) -> dict:
+        result = {char_id: dict(stats) for char_id, stats in x.items()}
+        for char_id, stats in y.items():
+            if char_id not in result:
+                result[char_id] = dict(stats)
+            else:
+                for stat, val in stats.items():
+                    result[char_id][stat] = result[char_id].get(stat, 0) + val
+        return result
+
     return StateDiff(
         updated_characters=_deep_merge(a.updated_characters, b.updated_characters),
         updated_locations=_deep_merge(a.updated_locations, b.updated_locations),
@@ -430,6 +440,7 @@ def _merge_diffs(a: StateDiff, b: StateDiff) -> StateDiff:
         quest_updates={**a.quest_updates, **b.quest_updates},
         new_events=a.new_events + b.new_events,
         story_active_since_updates={**a.story_active_since_updates, **b.story_active_since_updates},
+        character_stat_deltas=_merge_stat_deltas(a.character_stat_deltas, b.character_stat_deltas),
         turn_increment=a.turn_increment + b.turn_increment,
     )
 
