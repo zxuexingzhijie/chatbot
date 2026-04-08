@@ -191,7 +191,7 @@ nodes:
       conditions:
         - type: quest
           event_id: guest_quest
-          check: exists
+          check: active
         - type: event
           event_id: cellar_entered
           check: exists
@@ -263,6 +263,9 @@ nodes:
         - id: cart_search_complete
           type: side_quest
           description: "在废弃马车下发现了一个生锈铁盒"
+      add_items:
+        - item_id: rusty_box
+          to: backyard
 
     narrator_hint: "马车篷布下露出一个生锈的铁盒，看起来已经在这里很久了。"
 
