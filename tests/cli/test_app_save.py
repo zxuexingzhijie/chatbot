@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import pytest
 from unittest.mock import MagicMock
 from pathlib import Path
@@ -47,20 +48,20 @@ def app(mock_state, tmp_path):
 
 
 def test_save_command_calls_save_manager(app, tmp_path):
-    app._handle_system_command("save", "autosave")
+    asyncio.run(app._handle_system_command("save", "autosave"))
     assert (tmp_path / "saves" / "autosave.json").exists()
     app._renderer.render_save_success.assert_called_once()
 
 
 def test_save_command_named_slot(app, tmp_path):
-    app._handle_system_command("save", "mygame")
+    asyncio.run(app._handle_system_command("save", "mygame"))
     assert (tmp_path / "saves" / "mygame.json").exists()
 
 
 def test_load_command_rebuilds_state_manager_and_memory(app, tmp_path, mock_state):
     app._save_manager.save(mock_state, "autosave")
 
-    app._handle_system_command("load", "autosave")
+    asyncio.run(app._handle_system_command("load", "autosave"))
 
     assert app._state_manager is not None
     assert app._memory is not None
@@ -70,12 +71,12 @@ def test_load_command_rebuilds_state_manager_and_memory(app, tmp_path, mock_stat
 
 def test_load_during_dialogue_rejected(app, mock_state):
     app._dialogue_manager.is_active = True
-    app._handle_system_command("load", "autosave")
+    asyncio.run(app._handle_system_command("load", "autosave"))
     app._renderer.render_load_success.assert_not_called()
 
 
 def test_saves_command_renders_list(app):
-    app._handle_system_command("saves", "autosave")
+    asyncio.run(app._handle_system_command("saves", "autosave"))
     app._renderer.render_saves_list.assert_called_once()
 
 

@@ -79,7 +79,7 @@ def test_continue_command_triggers_story():
     )
     app._story_engine.check = MagicMock(return_value=[fake_result])
 
-    app._handle_system_command("continue")
+    asyncio.run(app._handle_system_command("continue"))
 
     app._story_engine.check.assert_called_once()
     call_args = app._story_engine.check.call_args
@@ -89,7 +89,7 @@ def test_continue_command_triggers_story():
 def test_continue_no_results_prints_message():
     app, state = _make_app()
     app._story_engine.check = MagicMock(return_value=[])
-    app._handle_system_command("continue")
+    asyncio.run(app._handle_system_command("continue"))
     app._renderer.console.print.assert_called()
     printed = app._renderer.console.print.call_args[0][0]
     assert "没有新的剧情" in printed

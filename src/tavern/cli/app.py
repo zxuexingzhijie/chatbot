@@ -132,12 +132,12 @@ class GameApp:
             slot_arg = parts[1] if len(parts) > 1 else "autosave"
 
             if first_word in SYSTEM_COMMANDS:
-                self._handle_system_command(first_word, slot_arg)
+                await self._handle_system_command(first_word, slot_arg)
                 continue
 
             await self._handle_free_input(user_input)
 
-    def _handle_system_command(self, command: str, slot: str = "autosave") -> None:
+    async def _handle_system_command(self, command: str, slot: str = "autosave") -> None:
         if command == "look":
             request = ActionRequest(action=ActionType.LOOK)
             result, _ = self._rules.validate(request, self.state)
@@ -179,12 +179,9 @@ class GameApp:
                         actor=self.state.player_id,
                         state=self.state,
                     )
-                    import asyncio as _aio
-                    _aio.get_event_loop().run_until_complete(
-                        self._renderer.render_stream(
-                            self._narrator.stream_ending_narrative(
-                                ending_id, ending_hint, self.state, memory_ctx,
-                            )
+                    await self._renderer.render_stream(
+                        self._narrator.stream_ending_narrative(
+                            ending_id, ending_hint, self.state, memory_ctx,
                         )
                     )
                     self._renderer.render_ending(ending_id)
