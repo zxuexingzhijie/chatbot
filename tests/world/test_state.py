@@ -138,3 +138,20 @@ def test_world_state_apply_merges_story_active_since():
     result = ActionResult(success=True, action=ActionType.LOOK, message="ok")
     new_state = state.apply(diff, action=result)
     assert new_state.story_active_since == {"node_a": 1, "node_b": 3}
+
+
+def test_world_state_apply_story_active_since_overwrite():
+    from tavern.world.state import StateDiff, WorldState
+    from tavern.world.models import Character, CharacterRole, Location, ActionResult
+    from tavern.engine.actions import ActionType
+    state = WorldState(
+        turn=10,
+        player_id="player",
+        locations={"room": Location(id="room", name="R", description="d")},
+        characters={"player": Character(id="player", name="P", role=CharacterRole.PLAYER, location_id="room")},
+        story_active_since={"node_a": 1},
+    )
+    diff = StateDiff(story_active_since_updates={"node_a": 10}, turn_increment=0)
+    result = ActionResult(success=True, action=ActionType.LOOK, message="ok")
+    new_state = state.apply(diff, action=result)
+    assert new_state.story_active_since["node_a"] == 10
