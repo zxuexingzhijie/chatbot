@@ -116,6 +116,24 @@ async def test_complete_no_system_omits_system_kwarg():
     assert "system" not in call_kwargs
 
 
+@pytest.mark.asyncio
+async def test_complete_response_format_no_system_still_passes_system_kwarg():
+    mock_response = MagicMock()
+    mock_response.content = [MagicMock(text='{"action": "look", "confidence": 1.0}')]
+
+    mock_client = AsyncMock()
+    mock_client.messages.create = AsyncMock(return_value=mock_response)
+
+    adapter = AnthropicAdapter(config=LLMConfig(provider="anthropic", model="claude-3-haiku-20240307"))
+    adapter._client = mock_client
+
+    # No system message in input
+    await adapter.complete([{"role": "user", "content": "look"}], response_format=ActionRequest)
+
+    call_kwargs = mock_client.messages.create.call_args.kwargs
+    assert call_kwargs.get("system") == "Respond with valid JSON only."
+
+
 # ── AnthropicAdapter.stream() ──────────────────────────────────────────────
 
 @pytest.mark.asyncio

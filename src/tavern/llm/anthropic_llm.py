@@ -34,13 +34,7 @@ class AnthropicAdapter:
             timeout=config.timeout,
             max_retries=0,  # tenacity handles retry
         )
-
-    async def complete(
-        self,
-        messages: list[dict],
-        response_format: type[T] | None = None,
-    ) -> T | str:
-        retryer = retry(
+        self._retryer = retry(
             retry=retry_if_exception_type(
                 (anthropic.RateLimitError, anthropic.APIConnectionError)
             ),
@@ -48,7 +42,13 @@ class AnthropicAdapter:
             stop=stop_after_attempt(self._config.max_retries),
             reraise=True,
         )
-        return await retryer(self._complete)(messages, response_format)
+
+    async def complete(
+        self,
+        messages: list[dict],
+        response_format: type[T] | None = None,
+    ) -> T | str:
+        return await self._retryer(self._complete)(messages, response_format)
 
     async def _complete(
         self,
