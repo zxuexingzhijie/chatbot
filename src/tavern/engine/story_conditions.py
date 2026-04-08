@@ -16,6 +16,10 @@ ConditionEvaluatorFn = Callable[
     bool,
 ]
 
+# ActivationCondition field conventions for story conditions:
+#   event_id  — canonical "string value" field used by all non-relationship evaluators
+#               (location target, item id, event id, quest id)
+#   operator / value — used only by relationship conditions (numeric comparison)
 CONDITION_REGISTRY: dict[str, ConditionEvaluatorFn] = {}
 
 
@@ -36,10 +40,7 @@ def eval_location(cond: ActivationCondition, state: "WorldState", timeline, rela
 
 @register_condition("inventory")
 def eval_inventory(cond: ActivationCondition, state: "WorldState", timeline, relationships) -> bool:
-    player = state.characters.get(state.player_id)
-    if player is None:
-        return False
-    return cond.event_id in player.inventory
+    return ConditionEvaluator.evaluate(cond, state, timeline, relationships)
 
 
 @register_condition("relationship")
