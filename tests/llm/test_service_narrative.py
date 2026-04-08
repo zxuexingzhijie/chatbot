@@ -67,3 +67,36 @@ class TestStreamNarrative:
         msgs = captured[0]
         assert msgs[0] == {"role": "system", "content": "系统提示"}
         assert msgs[1] == {"role": "user", "content": "行动消息"}
+
+
+# --- story_hint tests ---
+
+def test_build_narrative_prompt_with_story_hint():
+    from tavern.narrator.prompts import NarrativeContext, build_narrative_prompt
+    ctx = NarrativeContext(
+        action_type="move",
+        action_message="你走进了地下室",
+        location_name="地下室",
+        location_desc="昏暗潮湿",
+        player_name="冒险者",
+        target=None,
+    )
+    messages = build_narrative_prompt(ctx, memory_ctx=None, story_hint="氛围阴森，注意地面划痕。")
+    system_content = messages[0]["content"]
+    assert "氛围阴森" in system_content
+    assert "story_hint" not in system_content
+
+
+def test_build_narrative_prompt_no_hint_no_section():
+    from tavern.narrator.prompts import NarrativeContext, build_narrative_prompt
+    ctx = NarrativeContext(
+        action_type="look",
+        action_message="你环顾四周",
+        location_name="酒馆",
+        location_desc="嘈杂",
+        player_name="冒险者",
+        target=None,
+    )
+    messages = build_narrative_prompt(ctx, memory_ctx=None, story_hint=None)
+    system_content = messages[0]["content"]
+    assert "【剧情提示】" not in system_content

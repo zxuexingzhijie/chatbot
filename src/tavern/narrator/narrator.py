@@ -20,10 +20,11 @@ class Narrator:
         result: ActionResult,
         state: WorldState,
         memory_ctx: MemoryContext | None = None,
+        story_hint: str | None = None,
     ) -> AsyncGenerator[str, None]:
         try:
             ctx = self._build_context(result, state)
-            messages = build_narrative_prompt(ctx, memory_ctx)
+            messages = build_narrative_prompt(ctx, memory_ctx, story_hint=story_hint)
             system_prompt = messages[0]["content"]
             action_message = messages[1]["content"]
             async for chunk in self._llm.stream_narrative(system_prompt, action_message):
