@@ -625,3 +625,20 @@ nodes:
     path.write_text(yaml_content, encoding="utf-8")
     nodes = load_story_nodes(path)
     assert nodes["normal_node"].effects.trigger_ending is None
+
+
+def test_load_tavern_story_yaml_includes_endings():
+    from pathlib import Path
+    from tavern.engine.story import load_story_nodes
+    path = Path("data/scenarios/tavern/story.yaml")
+    if not path.exists():
+        pytest.skip("tavern story.yaml not found")
+    nodes = load_story_nodes(path)
+    assert "ending_good" in nodes
+    assert "ending_bad" in nodes
+    assert "ending_neutral" in nodes
+    assert "betray_guest" in nodes
+    assert nodes["ending_good"].effects.trigger_ending == "good_ending"
+    assert nodes["ending_bad"].effects.trigger_ending == "bad_ending"
+    assert nodes["ending_neutral"].effects.trigger_ending == "neutral_ending"
+    assert nodes["betray_guest"].effects.trigger_ending is None

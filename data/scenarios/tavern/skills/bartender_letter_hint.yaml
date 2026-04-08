@@ -1,0 +1,19 @@
+id: bartender_letter_hint
+name: 酒保对信件的兴趣
+character: bartender_grim
+priority: high
+activation:
+  - type: inventory
+    event_id: guest_letter
+  - type: location
+    event_id: bar_area
+facts:
+  - "注意到玩家手中那封带着古老徽章的信件"
+  - "对信件上的徽章标志非常感兴趣"
+  - "暗示自己认识信件上的徽章"
+behavior:
+  tone: "看似随意但暗含试探"
+  reveal_strategy: "旁敲侧击，暗示可以帮忙处理这封信件"
+  forbidden: "不会直接说出想要信件或承认认识徽章的主人"
+related_skills:
+  - guest_secret_knowledge

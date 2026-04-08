@@ -289,3 +289,138 @@ nodes:
           description: "从铁盒中获得了一把备用钥匙"
 
     narrator_hint: "铁盒里的备用钥匙，形状和地下室钥匙相似。也许能打开地下室的门。"
+
+  # ── Multi-Ending: Decision Node ─────────────────────────────────────────
+
+  - id: betray_guest
+    act: act1
+    requires: [guest_quest_complete]
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions:
+        - type: inventory
+          event_id: guest_letter
+        - type: location
+          event_id: bar_area
+        - type: event
+          event_id: talked_to_bartender_about_letter
+          check: exists
+
+    effects:
+      quest_updates:
+        guest_betrayal: { status: completed }
+      new_events:
+        - id: guest_betrayed
+          type: story
+          description: "玩家将神秘旅客的信件交给了酒保"
+      remove_items:
+        - item_id: guest_letter
+          from: inventory
+      character_stat_deltas:
+        bartender_grim:
+          trust: 30
+        mysterious_guest:
+          trust: -50
+
+    narrator_hint: "玩家做出了背叛的选择。酒保接过信件时眼中闪过贪婪的光芒。"
+
+  # ── Multi-Ending: Good Ending ───────────────────────────────────────────
+
+  - id: ending_good
+    act: act1
+    requires: [cellar_secret_revealed]
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions:
+        - type: event
+          event_id: secret_learned
+          check: exists
+        - type: quest_count
+          check: completed
+          operator: ">="
+          value: 2
+        - type: relationship
+          source: player
+          target: traveler
+          attribute: trust
+          operator: ">="
+          value: 20
+        - type: event
+          event_id: ending_bad_reached
+          check: not_exists
+        - type: event
+          event_id: ending_neutral_reached
+          check: not_exists
+
+    effects:
+      quest_updates:
+        main_story: { status: good_ending }
+      new_events:
+        - id: ending_good_reached
+          type: ending
+          description: "玩家达成好结局「黎明之路」"
+      trigger_ending: good_ending
+
+    narrator_hint: "玩家赢得了酒馆众人的信任，揭开了密道的秘密。艾琳愿意与你同行，格里姆终于露出了难得的笑容。新的冒险在密道的尽头等待着你。用温暖、希望的笔触收束这段故事。"
+
+  # ── Multi-Ending: Bad Ending ────────────────────────────────────────────
+
+  - id: ending_bad
+    act: act1
+    requires: [betray_guest]
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions:
+        - type: event
+          event_id: guest_betrayed
+          check: exists
+        - type: event
+          event_id: ending_good_reached
+          check: not_exists
+        - type: event
+          event_id: ending_neutral_reached
+          check: not_exists
+
+    effects:
+      quest_updates:
+        main_story: { status: bad_ending }
+      new_events:
+        - id: ending_bad_reached
+          type: ending
+          description: "玩家达成坏结局「暗影独行」"
+      trigger_ending: bad_ending
+
+    narrator_hint: "你出卖了神秘旅客的信任。格里姆收下信件，脸上浮现出意味深长的笑容。走廊里传来沉重而急促的脚步声——神秘旅客已经消失在夜色中。你得到了酒保的信任，却失去了更重要的东西。用阴暗、孤独的笔触收束。"
+
+  # ── Multi-Ending: Neutral Ending ────────────────────────────────────────
+
+  - id: ending_neutral
+    act: act1
+    requires: []
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions:
+        - type: turn_count
+          operator: ">="
+          value: 40
+        - type: event
+          event_id: ending_good_reached
+          check: not_exists
+        - type: event
+          event_id: ending_bad_reached
+          check: not_exists
+
+    effects:
+      quest_updates:
+        main_story: { status: neutral_ending }
+      new_events:
+        - id: ending_neutral_reached
+          type: ending
+          description: "玩家达成中结局「过客」"
+      trigger_ending: neutral_ending
+
+    narrator_hint: "夜深了，你终究只是酒馆里的一个过客。一些谜团仍未解开，一些故事仍在继续。你推开酒馆的门，走进晨雾弥漫的街道。身后传来隐约的笑声和杯盏碰撞声。用淡然、若有所思的笔触收束。"
