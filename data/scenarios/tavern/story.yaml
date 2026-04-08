@@ -57,3 +57,232 @@ nodes:
           description: "玩家得知地下室密道的存在"
 
     narrator_hint: "格里姆终于开口，压低声音提及密道，措辞谨慎。"
+
+  # ── Side Quest A: Traveler's Lost Amulet ──────────────────────────────────
+
+  - id: traveler_quest_start
+    act: act1
+    requires: []
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions:
+        - type: event
+          event_id: talked_to_traveler
+          check: exists
+
+    fail_forward:
+      after_turns: 8
+      hint_event:
+        description: "旅行者艾琳叹了口气，喃喃道：'要是能找到我的护身符就好了……'"
+        actor: traveler
+
+    effects:
+      quest_updates:
+        traveler_quest: { status: active }
+      new_events:
+        - id: traveler_quest_accepted
+          type: side_quest
+          description: "艾琳请求你帮她找回丢失的银质护身符"
+      add_items:
+        - item_id: lost_amulet
+          to: backyard
+
+    narrator_hint: "艾琳恳请帮忙，语气诚恳焦急。她提到护身符可能掉在了后院马车附近。"
+
+  - id: amulet_found
+    act: act1
+    requires: [traveler_quest_start]
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions:
+        - type: inventory
+          event_id: lost_amulet
+
+    fail_forward:
+      after_turns: 15
+      hint_event:
+        description: "后院马车附近似乎有什么东西在微微发光。"
+        actor: traveler
+
+    effects:
+      quest_updates:
+        traveler_quest: { status: amulet_found }
+      new_events:
+        - id: amulet_picked_up
+          type: side_quest
+          description: "玩家找到了艾琳的银质护身符"
+
+    narrator_hint: "护身符泛着微光，表面的符文似乎在呼应什么。这对艾琳一定很重要。"
+
+  - id: traveler_quest_complete
+    act: act1
+    requires: [amulet_found]
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions:
+        - type: event
+          event_id: amulet_picked_up
+          check: exists
+        - type: location
+          event_id: tavern_hall
+
+    effects:
+      quest_updates:
+        traveler_quest: { status: completed }
+      new_events:
+        - id: traveler_quest_done
+          type: side_quest
+          description: "艾琳感激地接过护身符，送出地图碎片作为答谢"
+      remove_items:
+        - item_id: lost_amulet
+          from: inventory
+      add_items:
+        - item_id: map_fragment
+          to: inventory
+      character_stat_deltas:
+        traveler:
+          trust: 20
+
+    narrator_hint: "艾琳感激地接过护身符，眼中闪着泪光。她从包裹里取出一张泛黄的碎片递给你。"
+
+  # ── Side Quest B: Mysterious Guest's Commission ───────────────────────────
+
+  - id: guest_quest_start
+    act: act1
+    requires: []
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions:
+        - type: relationship
+          source: player
+          target: mysterious_guest
+          attribute: trust
+          operator: ">="
+          value: 5
+        - type: location
+          event_id: corridor
+
+    fail_forward:
+      after_turns: 10
+      hint_event:
+        description: "神秘旅客在走廊低语：'如果你愿意帮忙，我有个……请求。'"
+        actor: mysterious_guest
+
+    effects:
+      quest_updates:
+        guest_quest: { status: active }
+      new_events:
+        - id: guest_quest_accepted
+          type: side_quest
+          description: "神秘旅客请求你调查地下室的秘密"
+
+    narrator_hint: "神秘旅客压低声音，语气紧迫而谨慎。他想知道酒保在地下室藏了什么。"
+
+  - id: cellar_reported
+    act: act1
+    requires: [guest_quest_start]
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions:
+        - type: quest
+          event_id: guest_quest
+          check: exists
+        - type: event
+          event_id: cellar_entered
+          check: exists
+        - type: location
+          event_id: corridor
+
+    effects:
+      quest_updates:
+        guest_quest: { status: reported }
+      new_events:
+        - id: cellar_info_shared
+          type: side_quest
+          description: "你把地下室的发现告诉了神秘旅客"
+
+    narrator_hint: "你把地下室的发现告诉了神秘旅客，他听得很认真，不时微微点头。"
+
+  - id: guest_quest_complete
+    act: act1
+    requires: [cellar_reported]
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions:
+        - type: event
+          event_id: cellar_info_shared
+          check: exists
+
+    effects:
+      quest_updates:
+        guest_quest: { status: completed }
+      new_events:
+        - id: guest_quest_done
+          type: side_quest
+          description: "神秘旅客递给你一封密封的信件"
+      add_items:
+        - item_id: guest_letter
+          to: inventory
+      character_stat_deltas:
+        mysterious_guest:
+          trust: 15
+
+    narrator_hint: "神秘旅客递给你一封密封的信件，眼中闪过复杂的神色。'这个……也许将来你会用到。'"
+
+  # ── Side Quest C: Backyard Cart ───────────────────────────────────────────
+
+  - id: cart_searched
+    act: act1
+    requires: []
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions:
+        - type: location
+          event_id: backyard
+        - type: event
+          event_id: searched_backyard
+          check: exists
+
+    fail_forward:
+      after_turns: 5
+      hint_event:
+        description: "月光照在马车上，篷布下似乎有东西反光。"
+        actor: player
+
+    effects:
+      quest_updates:
+        backyard_search: { status: found_box }
+      new_events:
+        - id: cart_search_complete
+          type: side_quest
+          description: "在废弃马车下发现了一个生锈铁盒"
+
+    narrator_hint: "马车篷布下露出一个生锈的铁盒，看起来已经在这里很久了。"
+
+  - id: box_opened_node
+    act: act1
+    requires: [cart_searched]
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions:
+        - type: event
+          event_id: box_opened
+          check: exists
+
+    effects:
+      quest_updates:
+        backyard_search: { status: completed }
+      new_events:
+        - id: spare_key_obtained
+          type: side_quest
+          description: "从铁盒中获得了一把备用钥匙"
+
+    narrator_hint: "铁盒里的备用钥匙，形状和地下室钥匙相似。也许能打开地下室的门。"
