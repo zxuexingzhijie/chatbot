@@ -232,3 +232,124 @@ def test_unknown_condition_type_skips_node(caplog):
         results = engine.check(state, "passive", MagicMock(), MagicMock())
     assert results == []
     assert "unknown_xyz" in caplog.text
+
+
+def test_check_condition_false_node_not_triggered():
+    from tavern.engine.story_conditions import CONDITION_REGISTRY, register_condition
+    from tavern.world.skills import ActivationCondition
+
+    @register_condition("always_false_test")
+    def always_false(cond, state, timeline, relationships):
+        return False
+
+    cond = ActivationCondition(type="always_false_test")
+    node = _make_node("n1", conditions=[cond])
+    engine = _make_engine([node])
+    state = _make_state()
+    results = engine.check(state, "passive", MagicMock(), MagicMock())
+    assert results == []
+
+    CONDITION_REGISTRY.pop("always_false_test", None)
+
+
+def test_fail_forward_skips_node_without_fail_forward():
+    node = _make_node("n1", fail_forward=None)
+    engine = _make_engine([node])
+    state = _make_state(turn=100, story_active_since={"n1": 0})
+    results = engine.check_fail_forward(state)
+    assert results == []
+
+
+# ---------------------------------------------------------------------------
+# load_story_nodes
+# ---------------------------------------------------------------------------
+
+def test_load_story_nodes_parses_valid_yaml(tmp_path):
+    from tavern.engine.story import load_story_nodes
+    yaml_content = """
+nodes:
+  - id: test_node
+    act: act1
+    requires: []
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions:
+        - type: location
+          event_id: cellar
+    effects:
+      quest_updates:
+        cellar_mystery: { status: discovered }
+      new_events:
+        - id: entered
+          type: story
+          description: "entered cellar"
+    narrator_hint: "spooky"
+"""
+    path = tmp_path / "story.yaml"
+    path.write_text(yaml_content, encoding="utf-8")
+    nodes = load_story_nodes(path)
+    assert "test_node" in nodes
+    node = nodes["test_node"]
+    assert node.act == "act1"
+    assert node.trigger_mode == "passive"
+    assert len(node.conditions) == 1
+    assert node.conditions[0].event_id == "cellar"
+    assert node.effects.quest_updates["cellar_mystery"]["status"] == "discovered"
+    assert len(node.effects.new_events) == 1
+    assert node.narrator_hint == "spooky"
+
+
+def test_load_story_nodes_skips_malformed_node(tmp_path, caplog):
+    import logging
+    from tavern.engine.story import load_story_nodes
+    yaml_content = """
+nodes:
+  - id: good_node
+    act: act1
+    requires: []
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions: []
+    effects:
+      quest_updates: {}
+      new_events: []
+  - this_is_not_a_mapping: 123
+"""
+    path = tmp_path / "story.yaml"
+    path.write_text(yaml_content, encoding="utf-8")
+    with caplog.at_level(logging.WARNING):
+        nodes = load_story_nodes(path)
+    assert "good_node" in nodes
+    assert len(nodes) == 1
+
+
+def test_load_story_nodes_with_fail_forward(tmp_path):
+    from tavern.engine.story import load_story_nodes
+    yaml_content = """
+nodes:
+  - id: ff_node
+    act: act1
+    requires: []
+    repeatable: false
+    trigger:
+      mode: passive
+      conditions: []
+    fail_forward:
+      after_turns: 5
+      hint_event:
+        description: "hint text"
+        actor: npc1
+    effects:
+      quest_updates: {}
+      new_events: []
+"""
+    path = tmp_path / "story.yaml"
+    path.write_text(yaml_content, encoding="utf-8")
+    nodes = load_story_nodes(path)
+    assert "ff_node" in nodes
+    ff = nodes["ff_node"].fail_forward
+    assert ff is not None
+    assert ff.after_turns == 5
+    assert ff.hint_event.actor == "npc1"
