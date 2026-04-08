@@ -105,7 +105,7 @@ def effect_story_event(eff: UseEffect, item_id: str, state: WorldState) -> tuple
 
     actor = eff.event.actor or state.player_id
     event = Event(
-        id=f"{eff.event.id}_t{state.turn}",
+        id=eff.event.id,
         turn=state.turn,
         type=eff.event.type,
         actor=actor,

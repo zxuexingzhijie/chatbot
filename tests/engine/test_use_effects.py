@@ -117,7 +117,7 @@ def test_story_event_effect_creates_event():
     diff, msg = effect_story_event(eff, "rusty_box", state)
     assert len(diff.new_events) == 1
     assert diff.new_events[0].type == "story"
-    assert diff.new_events[0].id == "box_opened_t3"
+    assert diff.new_events[0].id == "box_opened"
     assert "铁盒打开了" in diff.new_events[0].description
     assert msg is None
 
