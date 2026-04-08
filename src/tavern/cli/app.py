@@ -25,7 +25,7 @@ from tavern.world.state import StateManager, StateDiff, WorldState
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_COMMANDS = {"look", "inventory", "status", "hint", "undo", "help", "quit"}
+SYSTEM_COMMANDS = {"look", "inventory", "status", "hint", "undo", "help", "quit", "save", "load", "saves"}
 
 _LLM_CONFIG_FIELDS = set(LLMConfig.model_fields.keys())
 
@@ -72,6 +72,11 @@ class GameApp:
             skills_dir=skills_dir if skills_dir.exists() else None,
         )
         self._dialogue_ctx: DialogueContext | None = None
+        self._scenario_path = scenario_path
+        self._game_config = game_config
+        saves_dir = Path(game_config.get("saves_dir", "saves"))
+        from tavern.world.persistence import SaveManager
+        self._save_manager = SaveManager(saves_dir)
 
         debug_config = config.get("debug", {})
         self._show_intent = debug_config.get("show_intent_json", False)
@@ -113,13 +118,16 @@ class GameApp:
                 await self._process_dialogue_input(user_input, self._dialogue_ctx)
                 continue
 
-            if command in SYSTEM_COMMANDS:
-                self._handle_system_command(command)
+            first_word = command.split()[0] if command.split() else ""
+            slot_arg = command.split()[1] if len(command.split()) > 1 else "autosave"
+
+            if first_word in SYSTEM_COMMANDS:
+                self._handle_system_command(first_word, slot_arg)
                 continue
 
             await self._handle_free_input(user_input)
 
-    def _handle_system_command(self, command: str) -> None:
+    def _handle_system_command(self, command: str, slot: str = "autosave") -> None:
         if command == "look":
             request = ActionRequest(action=ActionType.LOOK)
             result, _ = self._rules.validate(request, self.state)
@@ -148,6 +156,14 @@ class GameApp:
 
         elif command == "help":
             self._renderer.render_help()
+
+        elif command == "save":
+            try:
+                new_state = self._memory.sync_to_state(self.state)
+                path = self._save_manager.save(new_state, slot)
+                self._renderer.render_save_success(slot, path)
+            except OSError as e:
+                self._renderer.console.print(f"\n[red]存档失败：{e}[/]\n")
 
         self._renderer.render_status_bar(self.state)
 
