@@ -4,6 +4,7 @@ import pytest
 from tavern.world.memory import (
     EventTimeline,
     MemoryContext,
+    MemorySystem,
     RelationshipDelta,
     Relationship,
 )
@@ -273,3 +274,35 @@ class TestMemorySystem:
         mem = MemorySystem(state=state, skills_dir=None)
         ctx = mem.build_context("traveler", state)
         assert ctx.active_skills_text == ""
+
+
+class TestGetPlayerRelationships:
+    def test_returns_relationships_for_player(self, sample_world_state):
+        memory = MemorySystem(state=sample_world_state)
+        memory._relationship_graph.update(RelationshipDelta(src="player", tgt="traveler", delta=25))
+        memory._relationship_graph.update(RelationshipDelta(src="player", tgt="bartender_grim", delta=-10))
+
+        rels = memory.get_player_relationships()
+
+        assert len(rels) == 2
+        ids = {r.tgt for r in rels}
+        assert ids == {"traveler", "bartender_grim"}
+
+    def test_returns_empty_list_when_no_relationships(self, sample_world_state):
+        memory = MemorySystem(state=sample_world_state)
+
+        rels = memory.get_player_relationships()
+
+        assert rels == []
+
+    def test_returns_relationship_type(self, sample_world_state):
+        memory = MemorySystem(state=sample_world_state)
+        memory._relationship_graph.update(RelationshipDelta(src="player", tgt="traveler", delta=40))
+
+        rels = memory.get_player_relationships()
+
+        assert len(rels) == 1
+        assert isinstance(rels[0], Relationship)
+        assert rels[0].src == "player"
+        assert rels[0].tgt == "traveler"
+        assert rels[0].value == 40

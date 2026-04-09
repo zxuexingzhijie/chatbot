@@ -172,6 +172,9 @@ class MemorySystem:
             active_skills_text=active_skills_text,
         )
 
+    def get_player_relationships(self) -> list[Relationship]:
+        return self._relationship_graph.get_all_for("player")
+
     def sync_to_state(self, state: WorldState) -> WorldState:
         snapshot = self._relationship_graph.to_snapshot()
         return state.model_copy(update={"relationships_snapshot": snapshot})
