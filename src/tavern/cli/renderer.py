@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from prompt_toolkit import PromptSession
+from prompt_toolkit.formatted_text import HTML
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -20,6 +22,7 @@ logger = logging.getLogger(__name__)
 class Renderer:
     def __init__(self, console: Console | None = None):
         self.console = console or Console()
+        self._session = PromptSession(vi_mode=True)
 
     def render_status_bar(self, state: WorldState) -> None:
         player = state.characters[state.player_id]
@@ -135,7 +138,7 @@ class Renderer:
             Panel(
                 f"[bold]{scenario_name}[/]\n\n"
                 "欢迎来到奇幻世界的互动小说体验。\n"
-                "输入自然语言与世界互动，输入 [cyan]help[/] 查看命令列表。",
+                "输入自然语言与世界互动，输入 [cyan]/help[/] 查看命令列表。",
                 title="🐉 Tavern",
                 border_style="bright_blue",
             )
@@ -158,8 +161,8 @@ class Renderer:
             "quit": "退出游戏",
         }
         for cmd, desc in commands.items():
-            self.console.print(f"  [cyan]{cmd}[/] — {desc}")
-        self.console.print("\n[dim]输入任何其他内容与世界自由互动。[/]\n")
+            self.console.print(f"  [cyan]/{cmd}[/] — {desc}")
+        self.console.print("\n[dim]输入任何其他内容与世界自由互动。输入框支持 Vim 键绑定。[/]\n")
 
     def render_save_success(self, slot: str, path: Path) -> None:
         self.console.print(f"\n[green]已存档：{slot}（{path}）[/]\n")
@@ -181,9 +184,9 @@ class Renderer:
 
     def get_input(self) -> str:
         try:
-            return self.console.input("[bold green]▸[/] ").strip()
+            return self._session.prompt(HTML("<ansigreen><b>▸ </b></ansigreen>")).strip()
         except (EOFError, KeyboardInterrupt):
-            return "quit"
+            return "/quit"
 
     def render_dialogue_start(
         self, ctx: DialogueContext, response: DialogueResponse
@@ -255,6 +258,6 @@ class Renderer:
 
     def get_dialogue_input(self) -> str:
         try:
-            return self.console.input("[bold cyan]对话▸[/] ").strip()
+            return self._session.prompt(HTML("<ansicyan><b>对话▸ </b></ansicyan>")).strip()
         except (EOFError, KeyboardInterrupt):
             return "bye"

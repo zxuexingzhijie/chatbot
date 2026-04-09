@@ -82,6 +82,7 @@ class TestRenderer:
         assert "save" in output
         assert "load" in output
         assert "saves" in output
+        assert "/" in output
 
     def test_render_status_shows_stats_compact(self, renderer, sample_world_state, console):
         renderer.render_status(sample_world_state, [])

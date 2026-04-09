@@ -31,81 +31,80 @@ def _prompt_choice(prompt: str, choices: list[str], default: int = 0) -> str:
         print("输入无效，请重试。")
 
 
-def _build_openai_config(api_key: str) -> dict:
-    return {
-        "intent": {
-            "provider": "openai",
-            "model": "gpt-4o-mini",
-            "temperature": 0.1,
-            "max_tokens": 200,
-            "api_key": api_key,
-        },
-        "narrative": {
-            "provider": "openai",
-            "model": "gpt-4o",
-            "temperature": 0.8,
-            "max_tokens": 500,
-            "api_key": api_key,
-        },
+def _build_llm_config(
+    provider: str,
+    intent_model: str,
+    narrative_model: str,
+    *,
+    api_key: str | None = None,
+    base_url: str | None = None,
+) -> dict:
+    intent: dict = {
+        "provider": provider,
+        "model": intent_model,
+        "temperature": 0.1,
+        "max_tokens": 200,
     }
-
-
-def _build_anthropic_config(api_key: str) -> dict:
-    return {
-        "intent": {
-            "provider": "anthropic",
-            "model": "claude-haiku-4-5-20251001",
-            "temperature": 0.1,
-            "max_tokens": 200,
-            "api_key": api_key,
-        },
-        "narrative": {
-            "provider": "anthropic",
-            "model": "claude-sonnet-4-6",
-            "temperature": 0.8,
-            "max_tokens": 500,
-            "api_key": api_key,
-        },
+    narrative: dict = {
+        "provider": provider,
+        "model": narrative_model,
+        "temperature": 0.8,
+        "max_tokens": 500,
     }
+    if api_key:
+        intent["api_key"] = api_key
+        narrative["api_key"] = api_key
+    if base_url:
+        intent["base_url"] = base_url
+        narrative["base_url"] = base_url
+    return {"intent": intent, "narrative": narrative}
 
 
-def _build_ollama_config(base_url: str, intent_model: str, narrative_model: str) -> dict:
-    return {
-        "intent": {
-            "provider": "ollama",
-            "model": intent_model,
-            "temperature": 0.1,
-            "max_tokens": 200,
-            "base_url": base_url,
-        },
-        "narrative": {
-            "provider": "ollama",
-            "model": narrative_model,
-            "temperature": 0.8,
-            "max_tokens": 500,
-            "base_url": base_url,
-        },
-    }
+def _require_input(prompt: str) -> str:
+    while True:
+        value = input(prompt).strip()
+        if value:
+            return value
+        print("此项为必填，请输入。")
 
 
 def _collect_provider_config(provider: str) -> dict:
     if provider == "openai":
+        base_url = input(
+            "API Base URL (直接回车使用 OpenAI 官方地址，或输入兼容地址): "
+        ).strip() or None
         api_key = os.environ.get("OPENAI_API_KEY", "")
         if not api_key:
-            api_key = getpass("OpenAI API Key (输入后不显示): ")
-        return _build_openai_config(api_key)
+            api_key = getpass("API Key (输入后不显示): ")
+        intent_model = _require_input("意图解析模型名称 (如 gpt-4o-mini): ")
+        narrative_model = _require_input("叙事生成模型名称 (如 gpt-4o): ")
+        return _build_llm_config(
+            "openai", intent_model, narrative_model,
+            api_key=api_key, base_url=base_url,
+        )
 
     if provider == "anthropic":
+        base_url = input(
+            "API Base URL (直接回车使用 Anthropic 官方地址，或输入兼容地址): "
+        ).strip() or None
         api_key = os.environ.get("ANTHROPIC_API_KEY", "")
         if not api_key:
-            api_key = getpass("Anthropic API Key (输入后不显示): ")
-        return _build_anthropic_config(api_key)
+            api_key = getpass("API Key (输入后不显示): ")
+        intent_model = _require_input("意图解析模型名称 (如 claude-haiku-4-5-20251001): ")
+        narrative_model = _require_input("叙事生成模型名称 (如 claude-sonnet-4-6): ")
+        return _build_llm_config(
+            "anthropic", intent_model, narrative_model,
+            api_key=api_key, base_url=base_url,
+        )
 
     base_url = input("Ollama 地址 (默认 http://localhost:11434): ").strip()
     base_url = base_url or "http://localhost:11434"
-    intent_model = input("意图解析模型 (默认 qwen2:7b): ").strip() or "qwen2:7b"
-    narrative_model = input("叙事生成模型 (默认 llama3:8b): ").strip() or "llama3:8b"
-    return _build_ollama_config(base_url, intent_model, narrative_model)
+    intent_model = _require_input("意图解析模型名称 (如 qwen2:7b): ")
+    narrative_model = _require_input("叙事生成模型名称 (如 llama3:8b): ")
+    return _build_llm_config(
+        "ollama", intent_model, narrative_model,
+        base_url=base_url,
+    )
 
 
 def run_init() -> Path:

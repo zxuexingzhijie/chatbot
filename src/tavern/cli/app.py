@@ -158,7 +158,7 @@ class GameApp:
 
             command = user_input.lower().strip()
 
-            if command == "quit":
+            if command == "/quit":
                 self._renderer.console.print("\n[dim]再见，冒险者。[/]\n")
                 break
 
@@ -166,15 +166,20 @@ class GameApp:
                 await self._process_dialogue_input(user_input, self._dialogue_ctx)
                 continue
 
-            parts = user_input.strip().split()
-            first_word = parts[0].lower() if parts else ""
-            slot_arg = parts[1] if len(parts) > 1 else "autosave"
-
-            if first_word in SYSTEM_COMMANDS:
-                await self._handle_system_command(first_word, slot_arg)
+            if not command.startswith("/"):
+                await self._handle_free_input(user_input)
                 continue
 
-            await self._handle_free_input(user_input)
+            parts = command[1:].split()
+            cmd_name = parts[0] if parts else ""
+            slot_arg = parts[1] if len(parts) > 1 else "autosave"
+
+            if cmd_name in SYSTEM_COMMANDS:
+                await self._handle_system_command(cmd_name, slot_arg)
+            else:
+                self._renderer.console.print(
+                    f"\n[red]未知命令: /{cmd_name}[/]  输入 [cyan]/help[/] 查看可用命令。\n"
+                )
 
     async def _handle_system_command(self, command: str, slot: str = "autosave") -> None:
         if command == "look":
