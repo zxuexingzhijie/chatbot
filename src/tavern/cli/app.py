@@ -147,7 +147,8 @@ class GameApp:
             self._renderer.render_inventory(self.state)
 
         elif command == "status":
-            self._renderer.render_status(self.state)
+            relationships = self._memory.get_player_relationships()
+            self._renderer.render_status(self.state, relationships)
 
         elif command == "hint":
             self._renderer.console.print(
