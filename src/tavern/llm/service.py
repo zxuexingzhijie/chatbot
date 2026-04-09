@@ -16,10 +16,10 @@ INTENT_SYSTEM_PROMPT = """\
 - 可用出口: {exits}
 
 动作类型:
-- move: 移动到另一个位置
+- move: 移动到另一个位置（仅限通过出口移动到另一个地点）
 - look: 观察环境或某个对象
 - search: 搜索隐藏物品
-- talk: 与NPC对话
+- talk: 与NPC对话（包括"走向/走进/靠近"某个NPC）
 - persuade: 说服NPC
 - trade: 与NPC交易
 - take: 拾取物品
@@ -29,11 +29,16 @@ INTENT_SYSTEM_PROMPT = """\
 - combat: 战斗
 - custom: 其他（无法归类时使用）
 
+重要规则:
+- target字段必须使用实体的ID（括号内的标识符），不要使用中文名
+- 如果玩家说"走向/走进/靠近/找"某个NPC，这是talk而不是move
+- move只用于通过出口移动到另一个地点
+
 返回JSON格式: {{"action": "<动作类型>", "target": "<目标ID或null>", \
 "detail": "<补充描述>", "confidence": <0.0-1.0>}}
 
 示例:
-- 输入: "走到吧台那边" -> {{"action": "move", "target": "bar_area", \
+- 输入: "走到吧台那边" -> {{"action": "move", "target": "north", \
 "detail": "走向吧台", "confidence": 0.95}}
 - 输入: "看看四周有什么" -> {{"action": "look", "target": null, \
 "detail": "观察周围环境", "confidence": 0.9}}
@@ -41,6 +46,8 @@ INTENT_SYSTEM_PROMPT = """\
 "detail": "拾取旧告示", "confidence": 0.95}}
 - 输入: "和旅行者聊聊" -> {{"action": "talk", "target": "traveler", \
 "detail": "与旅行者对话", "confidence": 0.9}}
+- 输入: "走进旅行者" -> {{"action": "talk", "target": "traveler", \
+"detail": "走向旅行者交谈", "confidence": 0.9}}
 - 输入: "用钥匙开地下室的门" -> {{"action": "use", "target": "cellar_key", \
 "detail": "cellar_door", "confidence": 0.95}}
 - 输入: "使用铁盒" -> {{"action": "use", "target": "rusty_box", \
@@ -64,9 +71,9 @@ class LLMService:
     ) -> ActionRequest:
         system_msg = INTENT_SYSTEM_PROMPT.format(
             location=scene_context.get("location", "unknown"),
-            npcs=", ".join(scene_context.get("npcs", [])) or "无",
-            items=", ".join(scene_context.get("items", [])) or "无",
-            exits=", ".join(scene_context.get("exits", [])) or "无",
+            npcs=scene_context.get("npcs_display", "无"),
+            items=scene_context.get("items_display", "无"),
+            exits=scene_context.get("exits_display", "无"),
         )
         messages = [
             {"role": "system", "content": system_msg},

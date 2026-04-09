@@ -348,6 +348,7 @@ class GameApp:
                 npcs=list(location.npcs),
                 items=list(location.items),
                 exits=list(location.exits.keys()),
+                state=self.state,
             )
 
         if self._show_intent:

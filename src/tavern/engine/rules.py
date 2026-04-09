@@ -28,18 +28,40 @@ def _get_player_location(state: WorldState):
     return state.locations[player.location_id]
 
 
+def _resolve_name(entity_id: str, state: WorldState) -> str:
+    """Resolve an internal entity ID to its display name."""
+    if entity_id in state.characters:
+        return state.characters[entity_id].name
+    if entity_id in state.locations:
+        return state.locations[entity_id].name
+    if entity_id in state.items:
+        return state.items[entity_id].name
+    return entity_id
+
+
+def _format_exits(location, state: WorldState) -> str:
+    """Format exit info as display-friendly descriptions."""
+    parts = []
+    for direction, exit_ in location.exits.items():
+        target_loc = state.locations.get(exit_.target)
+        loc_name = target_loc.name if target_loc else exit_.target
+        parts.append(f"{exit_.description}（{loc_name}）")
+    return "、".join(parts)
+
+
 def _handle_move(request: ActionRequest, state: WorldState):
     location = _get_player_location(state)
     player = _get_player(state)
     direction = request.target
 
     if direction not in location.exits:
-        available = ", ".join(location.exits.keys())
+        available = _format_exits(location, state)
+        display_name = _resolve_name(direction, state) if direction else direction
         return (
             ActionResult(
                 success=False,
                 action=ActionType.MOVE,
-                message=f"这里没有通往「{direction}」的出口。可用方向: {available}",
+                message=f"这里没有通往「{display_name}」的出口。可用方向: {available}",
                 target=direction,
             ),
             None,
@@ -191,7 +213,7 @@ def _look_at_target(target_id, state, location):
         ActionResult(
             success=False,
             action=ActionType.LOOK,
-            message=f"你没有看到「{target_id}」。",
+            message=f"你没有看到「{_resolve_name(target_id, state)}」。",
             target=target_id,
         ),
         None,
@@ -212,11 +234,12 @@ def _handle_take(request: ActionRequest, state: WorldState):
         )
 
     if target_id not in location.items:
+        display_name = _resolve_name(target_id, state)
         return (
             ActionResult(
                 success=False,
                 action=ActionType.TAKE,
-                message=f"这里没有「{target_id}」可以拾取。",
+                message=f"这里没有「{display_name}」可以拾取。",
                 target=target_id,
             ),
             None,
@@ -285,11 +308,12 @@ def _handle_talk(request: ActionRequest, state: WorldState):
         )
 
     if target_id not in state.characters:
+        display_name = _resolve_name(target_id, state)
         return (
             ActionResult(
                 success=False,
                 action=ActionType.TALK,
-                message=f"这里没有叫「{target_id}」的人。",
+                message=f"这里没有叫「{display_name}」的人。",
                 target=target_id,
             ),
             None,
@@ -354,7 +378,7 @@ def _handle_use(request: ActionRequest, state: WorldState):
     if item_id not in state.items:
         return (
             ActionResult(success=False, action=ActionType.USE,
-                         message=f"未知物品: {item_id}", target=item_id),
+                         message=f"未知物品: {_resolve_name(item_id, state)}", target=item_id),
             None,
         )
 
