@@ -36,12 +36,16 @@ def _build_llm_config(raw: dict) -> LLMConfig:
 
 
 class GameApp:
-    def __init__(self, config_path: str = "config.yaml"):
+    def __init__(self, config_path: str | None = None):
         config = self._load_config(config_path)
         llm_config = config.get("llm", {})
         game_config = config.get("game", {})
 
-        scenario_path = Path(game_config.get("scenario", "data/scenarios/tavern"))
+        raw_scenario = game_config.get("scenario", "tavern")
+        scenario_path = Path(raw_scenario)
+        if not scenario_path.is_absolute() and not scenario_path.exists():
+            from tavern.data import get_bundled_scenario
+            scenario_path = get_bundled_scenario(raw_scenario)
         errors = validate_scenario(scenario_path)
         if errors:
             from rich.console import Console
@@ -100,11 +104,32 @@ class GameApp:
         logging.basicConfig(level=getattr(logging, log_level, logging.INFO))
 
     @staticmethod
-    def _load_config(path: str) -> dict:
-        config_path = Path(path)
-        if config_path.exists():
-            with open(config_path, encoding="utf-8") as f:
+    def _load_config(path: str | None) -> dict:
+        if path is not None:
+            p = Path(path)
+            if p.exists():
+                with open(p, encoding="utf-8") as f:
+                    return yaml.safe_load(f) or {}
+            return {}
+
+        import os
+        xdg = os.environ.get("XDG_CONFIG_HOME", "")
+        xdg_path = (Path(xdg) if xdg else Path.home() / ".config") / "tavern" / "config.yaml"
+        if xdg_path.exists():
+            with open(xdg_path, encoding="utf-8") as f:
                 return yaml.safe_load(f) or {}
+
+        local_path = Path("config.yaml")
+        if local_path.exists():
+            with open(local_path, encoding="utf-8") as f:
+                return yaml.safe_load(f) or {}
+
+        from tavern.data import get_bundled_scenarios_dir
+        default_path = get_bundled_scenarios_dir().parent / "default_config.yaml"
+        if default_path.exists():
+            with open(default_path, encoding="utf-8") as f:
+                return yaml.safe_load(f) or {}
+
         return {}
 
     @property

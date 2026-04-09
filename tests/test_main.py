@@ -42,6 +42,24 @@ def test_run_subcommand_with_custom_config():
             mock_run.assert_called_once_with("custom.yaml")
 
 
+def test_init_subcommand_calls_run_init():
+    with patch("sys.argv", ["tavern", "init"]):
+        import tavern.__main__ as mod
+        importlib.reload(mod)
+        with patch("tavern.cli.init.run_init") as mock_init:
+            mod.main()
+            mock_init.assert_called_once()
+
+
+def test_no_args_passes_none_config():
+    with patch("sys.argv", ["tavern"]):
+        import tavern.__main__ as mod
+        importlib.reload(mod)
+        with patch.object(mod, "_run_game") as mock_run:
+            mod.main()
+            mock_run.assert_called_once_with(None)
+
+
 def test_create_scenario_calls_scaffold(tmp_path):
     with patch("sys.argv", ["tavern", "create-scenario", "my_test", "--dir", str(tmp_path)]):
         import tavern.__main__ as mod
