@@ -160,3 +160,47 @@ class TestBuildNarrativePromptWithMemory:
         )
         messages = build_narrative_prompt(ctx, memory_ctx=memory_ctx)
         assert "traveler" in messages[0]["content"]
+
+
+class TestNarrativeBasePrompt:
+    def test_system_prompt_contains_base_content(self):
+        ctx = NarrativeContext(
+            action_type="move",
+            action_message="你走进了吧台区。",
+            location_name="吧台区",
+            location_desc="木质吧台前摆着几张高脚凳。",
+            player_name="冒险者",
+            target=None,
+        )
+        messages = build_narrative_prompt(ctx)
+        system = messages[0]["content"]
+        assert "叙事者身份" in system
+        assert "感官描写" in system
+        assert "禁忌清单" in system
+
+    def test_system_prompt_contains_action_specific(self):
+        ctx = NarrativeContext(
+            action_type="look",
+            action_message="你环顾四周。",
+            location_name="酒馆大厅",
+            location_desc="温暖的酒馆大厅。",
+            player_name="冒险者",
+            target=None,
+        )
+        messages = build_narrative_prompt(ctx)
+        system = messages[0]["content"]
+        assert "观察行动专属指导" in system
+
+    def test_system_prompt_length_is_substantial(self):
+        ctx = NarrativeContext(
+            action_type="move",
+            action_message="你走进了吧台区。",
+            location_name="吧台区",
+            location_desc="木质吧台。",
+            player_name="冒险者",
+            target=None,
+        )
+        messages = build_narrative_prompt(ctx)
+        system = messages[0]["content"]
+        line_count = system.count("\n")
+        assert line_count >= 200, f"Expected 200+ lines, got {line_count}"
