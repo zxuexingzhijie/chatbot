@@ -230,6 +230,31 @@ class TestRenderStream:
         assert output.endswith("\n")
 
 
+class TestRendererInit:
+    def test_default_vi_mode_off(self):
+        from prompt_toolkit.enums import EditingMode
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console)
+        assert renderer._session.editing_mode == EditingMode.EMACS
+
+    def test_vi_mode_on(self):
+        from prompt_toolkit.enums import EditingMode
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console, vi_mode=True)
+        assert renderer._session.editing_mode == EditingMode.VI
+
+
+class TestSpinner:
+    @pytest.mark.asyncio
+    async def test_spinner_context_manager_runs_block(self):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console)
+        executed = False
+        async with renderer.spinner("测试中..."):
+            executed = True
+        assert executed
+
+
 class TestSlashCommandCompleter:
     def test_completes_slash_commands(self):
         from prompt_toolkit.document import Document

@@ -66,7 +66,8 @@ class GameApp:
             max_history=game_config.get("undo_history_size", 50),
         )
         self._rules = RulesEngine()
-        self._renderer = Renderer()
+        vi_mode = game_config.get("vi_mode", False)
+        self._renderer = Renderer(vi_mode=vi_mode)
 
         intent_raw = llm_config.get("intent", {
             "provider": "openai", "model": "gpt-4o-mini",
@@ -281,13 +282,14 @@ class GameApp:
         player = self.state.characters[self.state.player_id]
         location = self.state.locations[player.location_id]
 
-        request = await self._parser.parse(
-            user_input,
-            location_id=player.location_id,
-            npcs=list(location.npcs),
-            items=list(location.items),
-            exits=list(location.exits.keys()),
-        )
+        async with self._renderer.spinner("理解中..."):
+            request = await self._parser.parse(
+                user_input,
+                location_id=player.location_id,
+                npcs=list(location.npcs),
+                items=list(location.items),
+                exits=list(location.exits.keys()),
+            )
 
         if self._show_intent:
             self._renderer.console.print(
@@ -381,9 +383,10 @@ class GameApp:
             actor=ctx.npc_id,
             state=self.state,
         )
-        new_ctx, response = await self._dialogue_manager.respond(
-            ctx, user_input, self.state, memory_ctx
-        )
+        async with self._renderer.spinner("思考中..."):
+            new_ctx, response = await self._dialogue_manager.respond(
+                ctx, user_input, self.state, memory_ctx
+            )
         self._dialogue_ctx = new_ctx
         self._renderer.render_dialogue(response)
 

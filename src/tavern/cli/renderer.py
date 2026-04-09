@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from prompt_toolkit import PromptSession
@@ -50,9 +51,14 @@ class SlashCommandCompleter(Completer):
 
 
 class Renderer:
-    def __init__(self, console: Console | None = None):
+    def __init__(self, console: Console | None = None, vi_mode: bool = False):
         self.console = console or Console()
-        self._session = PromptSession(vi_mode=True, completer=SlashCommandCompleter())
+        self._session = PromptSession(vi_mode=vi_mode, completer=SlashCommandCompleter())
+
+    @asynccontextmanager
+    async def spinner(self, message: str = "思考中..."):
+        with self.console.status(f"[dim]{message}[/]", spinner="dots"):
+            yield
 
     def render_status_bar(self, state: WorldState) -> None:
         player = state.characters[state.player_id]

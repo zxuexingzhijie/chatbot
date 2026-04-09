@@ -34,6 +34,7 @@ llm:
 # ───────────────────────────────────────────────────────────────────────────
 
 game:
+  vi_mode: false
   auto_save_interval: 5
   undo_history_size: 50
   saves_dir: "saves"
