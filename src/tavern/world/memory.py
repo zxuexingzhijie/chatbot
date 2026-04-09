@@ -97,10 +97,15 @@ class RelationshipGraph:
         return Relationship(src=delta.src, tgt=delta.tgt, value=new_value)
 
     def get_all_for(self, char_id: str) -> list[Relationship]:
-        return [
-            Relationship(src=char_id, tgt=tgt, value=val)
-            for tgt, val in self._g.get(char_id, {}).items()
-        ]
+        results: list[Relationship] = []
+        for tgt, val in self._g.get(char_id, {}).items():
+            results.append(Relationship(src=char_id, tgt=tgt, value=val))
+        for src, targets in self._g.items():
+            if src == char_id:
+                continue
+            if char_id in targets:
+                results.append(Relationship(src=src, tgt=char_id, value=targets[char_id]))
+        return results
 
     def describe_for_prompt(self, char_id: str) -> str:
         rels = self.get_all_for(char_id)
@@ -184,8 +189,8 @@ class MemorySystem:
             active_skills_text=active_skills_text,
         )
 
-    def get_player_relationships(self) -> list[Relationship]:
-        return self._relationship_graph.get_all_for("player")
+    def get_player_relationships(self, player_id: str = "player") -> list[Relationship]:
+        return self._relationship_graph.get_all_for(player_id)
 
     def sync_to_state(self, state: WorldState) -> WorldState:
         snapshot = self._relationship_graph.to_snapshot()

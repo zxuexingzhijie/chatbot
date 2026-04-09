@@ -45,7 +45,7 @@ class OllamaAdapter:
     def __init__(self, config: LLMConfig) -> None:
         if httpx is None:
             raise ImportError(
-                "httpx 包未安装。请运行: pip install tavern[ollama]"
+                "httpx 包未安装。请运行: pip install tavern-game"
             )
         self._config = config
         base_url = (config.base_url or "http://localhost:11434").rstrip("/")
@@ -53,21 +53,23 @@ class OllamaAdapter:
             base_url=base_url,
             timeout=config.timeout,
         )
-        self._retryer = retry(
-            retry=retry_if_exception_type(
-                (httpx.ConnectError, httpx.TimeoutException),
-            ),
-            wait=wait_exponential(multiplier=1, min=1, max=10),
-            stop=stop_after_attempt(config.max_retries),
-            reraise=True,
-        )
 
     async def complete(
         self,
         messages: list[dict],
         response_format: type[T] | None = None,
     ) -> T | str:
-        return await self._retryer(self._complete)(messages, response_format)
+        @retry(
+            retry=retry_if_exception_type(
+                (httpx.ConnectError, httpx.TimeoutException),
+            ),
+            wait=wait_exponential(multiplier=1, min=1, max=10),
+            stop=stop_after_attempt(self._config.max_retries),
+            reraise=True,
+        )
+        async def _do():
+            return await self._complete(messages, response_format)
+        return await _do()
 
     async def _complete(
         self,
@@ -120,6 +122,9 @@ class OllamaAdapter:
                         yield content
         except httpx.HTTPError as exc:
             raise LLMError(f"Ollama stream failed: {exc}") from exc
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
 
 
 LLMRegistry.register("ollama", OllamaAdapter)

@@ -138,15 +138,18 @@ class TestRelationshipGraph:
         rel = g.update(RelationshipDelta(src="a", tgt="b", delta=-90))
         assert rel.value == -100
 
-    def test_get_all_for_returns_outgoing(self):
+    def test_get_all_for_returns_all_connected(self):
         from tavern.world.memory import RelationshipGraph
         g = RelationshipGraph()
         g.update(RelationshipDelta(src="traveler", tgt="player", delta=10))
         g.update(RelationshipDelta(src="traveler", tgt="grim", delta=-5))
         g.update(RelationshipDelta(src="player", tgt="traveler", delta=15))
         rels = g.get_all_for("traveler")
-        assert len(rels) == 2
-        assert all(r.src == "traveler" for r in rels)
+        assert len(rels) == 3
+        partners = {(r.src, r.tgt) for r in rels}
+        assert ("traveler", "player") in partners
+        assert ("traveler", "grim") in partners
+        assert ("player", "traveler") in partners
 
     def test_describe_for_prompt_contains_char(self):
         from tavern.world.memory import RelationshipGraph
@@ -322,3 +325,23 @@ class TestGetPlayerRelationships:
         assert rels[0].src == "player"
         assert rels[0].tgt == "traveler"
         assert rels[0].value == 40
+
+    def test_finds_incoming_edges(self, sample_world_state):
+        memory = MemorySystem(state=sample_world_state)
+        memory._relationship_graph.update(RelationshipDelta(src="traveler", tgt="player", delta=30))
+
+        rels = memory.get_player_relationships()
+
+        assert len(rels) == 1
+        assert rels[0].src == "traveler"
+        assert rels[0].tgt == "player"
+        assert rels[0].value == 30
+
+    def test_uses_player_id_parameter(self, sample_world_state):
+        memory = MemorySystem(state=sample_world_state)
+        memory._relationship_graph.update(RelationshipDelta(src="npc_a", tgt="hero", delta=20))
+
+        rels = memory.get_player_relationships(player_id="hero")
+
+        assert len(rels) == 1
+        assert rels[0].tgt == "hero"
