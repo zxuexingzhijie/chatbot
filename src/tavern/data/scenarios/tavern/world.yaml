@@ -5,6 +5,7 @@ locations:
       推开沉重的橡木门，你走进了「醉龙酒馆」。大厅里弥漫着麦酒和烤肉的香气，
       壁炉中的火焰投射出温暖的光芒。几张粗糙的木桌散落各处，角落里坐着一位
       风尘仆仆的旅行者。墙上挂着一张泛黄的告示。
+    atmosphere: warm
     exits:
       north:
         target: bar_area
@@ -26,6 +27,7 @@ locations:
       长长的橡木吧台后面，酒保格里姆正在擦拭杯子。吧台上摆着各式酒瓶，
       墙上挂着一面铜质奖牌和一幅褪色的城镇地图。吧台尽头有一扇沉重的
       铁门，上面挂着一把锁。
+    atmosphere: warm
     exits:
       south:
         target: tavern_hall
@@ -45,6 +47,7 @@ locations:
       阴暗潮湿的地下室，空气中弥漫着霉味。几个破旧的木桶堆在角落，
       蜘蛛网挂满了石质墙壁。地面上有一些奇怪的划痕，似乎有什么沉重的
       东西被拖过。
+    atmosphere: cold
     exits:
       up:
         target: bar_area
@@ -58,6 +61,7 @@ locations:
     description: >-
       狭窄的走廊两侧排列着几扇紧闭的房门。走廊尽头的房间门半掩着，
       透出昏暗的烛光。一位戴着兜帽的神秘旅客靠在墙边，似乎在等待什么。
+    atmosphere: dim
     exits:
       west:
         target: tavern_hall
@@ -71,6 +75,7 @@ locations:
     description: >-
       杂草丛生的后院，月光洒在一辆废弃的马车上。马车的篷布已经破烂不堪，
       但车厢下似乎藏着什么东西。院子角落有一口枯井，井沿上长满了青苔。
+    atmosphere: natural
     exits:
       east:
         target: tavern_hall

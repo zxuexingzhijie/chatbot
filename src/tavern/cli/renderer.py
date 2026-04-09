@@ -34,6 +34,15 @@ _COMMAND_COMPLETIONS: list[tuple[str, str]] = [
     ("quit", "退出游戏"),
 ]
 
+_ATMOSPHERE_STYLES: dict[str, str] = {
+    "warm": "italic rgb(255,200,140)",
+    "cold": "italic rgb(140,170,220)",
+    "dim": "italic rgb(160,160,160)",
+    "natural": "italic rgb(140,200,140)",
+    "danger": "italic rgb(220,140,140)",
+    "neutral": "italic dim",
+}
+
 
 class SlashCommandCompleter(Completer):
     def get_completions(self, document, complete_event):
@@ -87,13 +96,15 @@ class Renderer:
 
         self.console.print(f"\n{prefix}{result.message}\n", style=style)
 
-    async def render_stream(self, stream) -> None:
+    async def render_stream(self, stream, *, atmosphere: str = "neutral") -> None:
+        style = _ATMOSPHERE_STYLES.get(atmosphere, _ATMOSPHERE_STYLES["neutral"])
+        self.console.print()
         try:
             async for chunk in stream:
-                self.console.print(chunk, end="", highlight=False)
+                self.console.print(chunk, end="", style=style, highlight=False)
         except Exception as exc:
             logger.warning("render_stream interrupted: %s", exc)
-        self.console.print()
+        self.console.print("\n")
 
     def render_inventory(self, state: WorldState) -> None:
         player = state.characters[state.player_id]

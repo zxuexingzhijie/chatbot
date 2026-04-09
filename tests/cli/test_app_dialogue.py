@@ -191,7 +191,7 @@ class TestNarrativeIntegration:
         render_stream_calls = []
         app._renderer.render_result = lambda r: render_result_calls.append(r)
 
-        async def mock_render_stream(stream):
+        async def mock_render_stream(stream, *, atmosphere="neutral"):
             async for _ in stream:
                 pass
             render_stream_calls.append(True)

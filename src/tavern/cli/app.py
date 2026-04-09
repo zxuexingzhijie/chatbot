@@ -351,7 +351,8 @@ class GameApp:
                 await self._renderer.render_stream(
                     self._narrator.stream_ending_narrative(
                         ending_id, ending_hint, self.state, memory_ctx,
-                    )
+                    ),
+                    atmosphere=location.atmosphere,
                 )
                 self._renderer.render_ending(ending_id)
                 self._game_over = True
@@ -363,7 +364,8 @@ class GameApp:
             )
             combined_hint = "\n".join(self._pending_story_hints) or None
             await self._renderer.render_stream(
-                self._narrator.stream_narrative(result, self.state, memory_ctx, story_hint=combined_hint)
+                self._narrator.stream_narrative(result, self.state, memory_ctx, story_hint=combined_hint),
+                atmosphere=location.atmosphere,
             )
         else:
             self._renderer.render_result(result)

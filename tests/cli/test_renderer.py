@@ -299,3 +299,39 @@ class TestSlashCommandCompleter:
         completions = list(completer.get_completions(doc, None))
         assert len(completions) == 1
         assert completions[0].display_meta_text == "退出游戏"
+
+
+class TestAtmosphereStyles:
+    def test_atmosphere_style_mapping_has_all_keys(self):
+        from tavern.cli.renderer import _ATMOSPHERE_STYLES
+        for key in ("warm", "cold", "dim", "natural", "danger", "neutral"):
+            assert key in _ATMOSPHERE_STYLES
+
+    def test_neutral_is_default_fallback(self):
+        from tavern.cli.renderer import _ATMOSPHERE_STYLES
+        assert "italic" in _ATMOSPHERE_STYLES["neutral"]
+        assert "dim" in _ATMOSPHERE_STYLES["neutral"]
+
+    @pytest.mark.asyncio
+    async def test_render_stream_uses_atmosphere_style(self):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console)
+        await renderer.render_stream(_async_gen("温暖的酒馆大厅"), atmosphere="warm")
+        output = console.file.getvalue()
+        assert "温暖的酒馆大厅" in output
+
+    @pytest.mark.asyncio
+    async def test_render_stream_defaults_to_neutral(self):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console)
+        await renderer.render_stream(_async_gen("普通文字"))
+        output = console.file.getvalue()
+        assert "普通文字" in output
+
+    @pytest.mark.asyncio
+    async def test_render_stream_unknown_atmosphere_falls_back(self):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console)
+        await renderer.render_stream(_async_gen("未知氛围"), atmosphere="unknown_type")
+        output = console.file.getvalue()
+        assert "未知氛围" in output

@@ -59,6 +59,7 @@ class Location(BaseModel):
     exits: dict[str, Exit] = {}
     items: tuple[str, ...] = ()
     npcs: tuple[str, ...] = ()
+    atmosphere: str = "neutral"
 
     @model_validator(mode="wrap")
     @classmethod
