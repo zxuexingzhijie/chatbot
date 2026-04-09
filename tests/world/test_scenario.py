@@ -119,3 +119,33 @@ def _create_valid_scenario(path: Path) -> None:
         },
         "npcs": {},
     }), encoding="utf-8")
+
+
+class TestScaffoldScenario:
+    def test_creates_directory_structure(self, tmp_path):
+        from tavern.world.scenario import scaffold_scenario
+        result = scaffold_scenario("my_story", tmp_path)
+        assert result == tmp_path / "my_story"
+        assert (result / "scenario.yaml").exists()
+        assert (result / "world.yaml").exists()
+        assert (result / "characters.yaml").exists()
+        assert (result / "story.yaml").exists()
+        assert (result / "skills").is_dir()
+
+    def test_generated_scenario_passes_validation(self, tmp_path):
+        from tavern.world.scenario import scaffold_scenario, validate_scenario
+        result = scaffold_scenario("valid_test", tmp_path)
+        errors = validate_scenario(result)
+        assert errors == [], f"Scaffold should produce valid scenario: {errors}"
+
+    def test_raises_if_directory_exists(self, tmp_path):
+        from tavern.world.scenario import scaffold_scenario
+        (tmp_path / "existing").mkdir()
+        with pytest.raises(FileExistsError):
+            scaffold_scenario("existing", tmp_path)
+
+    def test_scenario_yaml_contains_name(self, tmp_path):
+        from tavern.world.scenario import scaffold_scenario, load_scenario_meta
+        scaffold_scenario("my_story", tmp_path)
+        meta = load_scenario_meta(tmp_path / "my_story")
+        assert meta.name == "my_story"

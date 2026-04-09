@@ -136,3 +136,61 @@ def _cross_reference_check(world_data: dict, chars_data: dict) -> list[str]:
                     )
 
     return errors
+
+
+SCENARIO_TEMPLATE = """\
+# 场景元数据
+name: {name}
+description: 请在此描述你的场景
+author: Unknown
+version: "1.0"
+"""
+
+WORLD_TEMPLATE = """\
+# 世界定义 — 地点和物品
+locations:
+  start_room:
+    name: 起始房间
+    description: 这是一个空旷的房间，等待你来填充。
+    exits: {}
+    items: []
+    npcs: []
+
+items: {}
+"""
+
+CHARACTERS_TEMPLATE = """\
+# 角色定义
+player:
+  id: player
+  name: 冒险者
+  role: player
+  traits:
+    - 勇敢
+  stats:
+    hp: 100
+  inventory: []
+  location_id: start_room
+
+npcs: {}
+"""
+
+STORY_TEMPLATE = """\
+# 剧情节点定义
+nodes: []
+"""
+
+
+def scaffold_scenario(name: str, parent: Path) -> Path:
+    target = parent / name
+    if target.exists():
+        raise FileExistsError(f"目录已存在: {target}")
+    target.mkdir(parents=True)
+    (target / "skills").mkdir()
+    (target / "scenario.yaml").write_text(
+        SCENARIO_TEMPLATE.format(name=name), encoding="utf-8"
+    )
+    (target / "world.yaml").write_text(WORLD_TEMPLATE, encoding="utf-8")
+    (target / "characters.yaml").write_text(CHARACTERS_TEMPLATE, encoding="utf-8")
+    (target / "story.yaml").write_text(STORY_TEMPLATE, encoding="utf-8")
+    return target
