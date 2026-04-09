@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import AsyncIterator, TypeVar
 
 import httpx
@@ -92,7 +93,26 @@ class OllamaAdapter:
         return content
 
     async def stream(self, messages: list[dict]) -> AsyncIterator[str]:
-        raise NotImplementedError("stream implemented in next task")
+        body: dict = {
+            "model": self._config.model,
+            "messages": messages,
+            "stream": True,
+            "options": {
+                "temperature": self._config.temperature,
+            },
+        }
+        try:
+            async with self._client.stream("POST", "/api/chat", json=body) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line.strip():
+                        continue
+                    chunk_data = json.loads(line)
+                    content = chunk_data.get("message", {}).get("content", "")
+                    if content:
+                        yield content
+        except httpx.HTTPError as exc:
+            raise LLMError(f"Ollama stream failed: {exc}") from exc
 
 
 LLMRegistry.register("ollama", OllamaAdapter)
