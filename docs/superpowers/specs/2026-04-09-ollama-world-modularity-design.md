@@ -114,21 +114,23 @@ async def stream(self, messages: list[dict]) -> AsyncIterator[str]:
 
 ```python
 def _append_json_instruction(messages: list[dict]) -> list[dict]:
-    """在 system message 末尾追加 JSON 输出指令，不修改原列表。"""
-    result = []
+    """在最后一条 system message 末尾追加 JSON 输出指令，不修改原列表。"""
     suffix = "Respond with valid JSON only."
-    system_appended = False
+    found = False
+    result = []
     for msg in reversed(messages):
-        if msg.get("role") == "system" and not system_appended:
+        if msg.get("role") == "system" and not found:
             result.append({**msg, "content": msg["content"] + "\n" + suffix})
-            system_appended = True
+            found = True
         else:
             result.append(msg)
     result.reverse()
-    if not system_appended:
+    if not found:
         result.insert(0, {"role": "system", "content": suffix})
     return result
 ```
+
+注：用 reversed 遍历是为了精确定位"最后一条" system message 并处理无 system message 的边缘情况。plan 阶段可考虑用 list comprehension 简化。
 
 ### 1.6 LLMError
 

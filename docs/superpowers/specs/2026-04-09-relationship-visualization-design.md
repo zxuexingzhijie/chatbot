@@ -93,12 +93,12 @@ console.print(f"  属性: {stats_line}")
 
 ### 4.3 任务进度
 
-遍历 `state.quests`：
+遍历 `state.quests`（`dict[str, dict]`）。每个 quest 的 value 是 plain dict，通过 `quest.get("status")` 取状态字符串：
 
-- 有记录的任务用 `●`，根据 status 显示：
+- 有记录的任务用 `●`，根据 `quest.get("status", "unknown")` 显示：
   - `completed` → `[green]completed[/]`
   - `active` → `[cyan]active[/]`
-  - 其他 → `[yellow]{status}[/]`
+  - 其他（如 `discovered`、`reported`、`amulet_found`）→ `[yellow]{status}[/]`
 - 无任务时显示 `[dim]（暂无任务记录）[/]`
 
 不显示"未开始"的任务（我们无法得知全部可能的支线，只展示已触发的）。
