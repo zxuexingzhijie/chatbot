@@ -124,6 +124,13 @@ class GameApp:
             with open(local_path, encoding="utf-8") as f:
                 return yaml.safe_load(f) or {}
 
+        from tavern.cli import init as _init_mod
+        _init_mod.run_init()
+
+        if xdg_path.exists():
+            with open(xdg_path, encoding="utf-8") as f:
+                return yaml.safe_load(f) or {}
+
         from tavern.data import get_bundled_scenarios_dir
         default_path = get_bundled_scenarios_dir().parent / "default_config.yaml"
         if default_path.exists():

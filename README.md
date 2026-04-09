@@ -16,17 +16,7 @@ brew install tavern-game
 ### pip
 
 ```bash
-# OpenAI 后端（默认）
-pip install tavern-game[openai]
-
-# Anthropic 后端
-pip install tavern-game[anthropic]
-
-# Ollama 本地模型
-pip install tavern-game[ollama]
-
-# 全部后端
-pip install tavern-game[all]
+pip install tavern-game
 ```
 
 ### 从源码安装
@@ -209,7 +199,7 @@ pytest
 pytest --cov=tavern
 ```
 
-## 核心依赖
+## 依赖
 
 | 库 | 用途 |
 |----|------|
@@ -217,14 +207,9 @@ pytest --cov=tavern
 | pydantic | 数据模型与校验 |
 | pyyaml | YAML 场景文件解析 |
 | tenacity | 重试机制 |
-
-### 可选依赖（按 LLM 后端）
-
-| 库 | 安装方式 |
-|----|---------|
-| openai | `pip install tavern-game[openai]` |
-| anthropic | `pip install tavern-game[anthropic]` |
-| httpx | `pip install tavern-game[ollama]` |
+| openai | OpenAI LLM 客户端 |
+| anthropic | Anthropic LLM 客户端 |
+| httpx | Ollama HTTP 客户端 |
 
 ## License
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -38,9 +39,42 @@ class TestConfigDiscovery:
         result = GameApp._load_config(None)
         assert result["game"]["scenario"] == "local_test"
 
-    def test_bundled_default_fallback(self, tmp_path, monkeypatch):
+    def test_no_config_triggers_init(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
         monkeypatch.setenv("HOME", str(tmp_path / "fakehome"))
-        result = GameApp._load_config(None)
-        assert result.get("game", {}).get("scenario") == "tavern"
+
+        xdg_dir = tmp_path / "fakehome" / ".config" / "tavern"
+
+        def fake_init():
+            xdg_dir.mkdir(parents=True, exist_ok=True)
+            config_path = xdg_dir / "config.yaml"
+            config_path.write_text(
+                yaml.dump({"llm": {"intent": {"provider": "openai"}}, "game": {"scenario": "tavern"}}),
+            )
+            return config_path
+
+        with patch("tavern.cli.init.run_init", fake_init):
+            result = GameApp._load_config(None)
+
+        assert result["game"]["scenario"] == "tavern"
+        assert result["llm"]["intent"]["provider"] == "openai"
+
+    def test_no_config_init_creates_file_that_is_loaded(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        xdg_base = tmp_path / "xdg"
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(xdg_base))
+        xdg_dir = xdg_base / "tavern"
+
+        def fake_init():
+            xdg_dir.mkdir(parents=True, exist_ok=True)
+            config_path = xdg_dir / "config.yaml"
+            config_path.write_text(
+                yaml.dump({"llm": {"intent": {"provider": "anthropic"}}, "game": {"scenario": "tavern"}}),
+            )
+            return config_path
+
+        with patch("tavern.cli.init.run_init", fake_init):
+            result = GameApp._load_config(None)
+
+        assert result["llm"]["intent"]["provider"] == "anthropic"
