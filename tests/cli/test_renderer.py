@@ -404,6 +404,186 @@ class TestTypewriterEffect:
             mock_sleep.assert_not_called()
 
 
+class TestContextualCompleter:
+    def test_slash_commands_still_work(self, sample_world_state):
+        from prompt_toolkit.document import Document
+
+        from tavern.cli.renderer import ContextualCompleter
+
+        completer = ContextualCompleter(state_provider=lambda: sample_world_state)
+        doc = Document("/lo", cursor_position=3)
+        completions = list(completer.get_completions(doc, None))
+        labels = [c.text for c in completions]
+        assert "look" in labels
+        assert "load" in labels
+
+    def test_completes_npc_names(self, sample_world_state):
+        from prompt_toolkit.document import Document
+
+        from tavern.cli.renderer import ContextualCompleter
+
+        completer = ContextualCompleter(state_provider=lambda: sample_world_state)
+        doc = Document("旅", cursor_position=1)
+        completions = list(completer.get_completions(doc, None))
+        texts = [c.text for c in completions]
+        assert any("旅" in t for t in texts)
+
+    def test_npc_completion_has_meta(self, sample_world_state):
+        from prompt_toolkit.document import Document
+
+        from tavern.cli.renderer import ContextualCompleter
+
+        completer = ContextualCompleter(state_provider=lambda: sample_world_state)
+        doc = Document("旅", cursor_position=1)
+        completions = list(completer.get_completions(doc, None))
+        npc_completions = [
+            c for c in completions if "NPC" in (c.display_meta_text or "")
+        ]
+        assert len(npc_completions) > 0
+
+    def test_completes_item_names(self, sample_world_state):
+        from prompt_toolkit.document import Document
+
+        from tavern.cli.renderer import ContextualCompleter
+
+        completer = ContextualCompleter(state_provider=lambda: sample_world_state)
+        doc = Document("旧", cursor_position=1)
+        completions = list(completer.get_completions(doc, None))
+        texts = [c.text for c in completions]
+        assert any("旧" in t for t in texts)
+
+    def test_completes_exit_directions(self, sample_world_state):
+        from prompt_toolkit.document import Document
+
+        from tavern.cli.renderer import ContextualCompleter
+
+        completer = ContextualCompleter(state_provider=lambda: sample_world_state)
+        doc = Document("n", cursor_position=1)
+        completions = list(completer.get_completions(doc, None))
+        texts = [c.text for c in completions]
+        assert "north" in texts
+
+    def test_no_completions_for_empty_input(self, sample_world_state):
+        from prompt_toolkit.document import Document
+
+        from tavern.cli.renderer import ContextualCompleter
+
+        completer = ContextualCompleter(state_provider=lambda: sample_world_state)
+        doc = Document("", cursor_position=0)
+        completions = list(completer.get_completions(doc, None))
+        assert completions == []
+
+    def test_no_state_returns_no_completions(self):
+        from prompt_toolkit.document import Document
+
+        from tavern.cli.renderer import ContextualCompleter
+
+        completer = ContextualCompleter(state_provider=lambda: None)
+        doc = Document("旅", cursor_position=1)
+        completions = list(completer.get_completions(doc, None))
+        assert completions == []
+
+    def test_exit_completion_has_meta(self, sample_world_state):
+        from prompt_toolkit.document import Document
+
+        from tavern.cli.renderer import ContextualCompleter
+
+        completer = ContextualCompleter(state_provider=lambda: sample_world_state)
+        doc = Document("n", cursor_position=1)
+        completions = list(completer.get_completions(doc, None))
+        exit_completions = [
+            c for c in completions if "出口" in (c.display_meta_text or "")
+        ]
+        assert len(exit_completions) > 0
+
+    def test_item_completion_has_meta(self, sample_world_state):
+        from prompt_toolkit.document import Document
+
+        from tavern.cli.renderer import ContextualCompleter
+
+        completer = ContextualCompleter(state_provider=lambda: sample_world_state)
+        doc = Document("旧", cursor_position=1)
+        completions = list(completer.get_completions(doc, None))
+        item_completions = [
+            c for c in completions if "物品" in (c.display_meta_text or "")
+        ]
+        assert len(item_completions) > 0
+
+    def test_inventory_items_completed(self, sample_world_state):
+        from prompt_toolkit.document import Document
+
+        from tavern.cli.renderer import ContextualCompleter
+        from tavern.world.models import Character, CharacterRole
+        from tavern.world.state import WorldState
+
+        player_with_inv = Character(
+            id="player",
+            name="冒险者",
+            role=CharacterRole.PLAYER,
+            traits=("勇敢",),
+            stats={"hp": 100, "gold": 10},
+            inventory=("cellar_key",),
+            location_id="tavern_hall",
+        )
+        state = WorldState(
+            turn=sample_world_state.turn,
+            player_id=sample_world_state.player_id,
+            locations=dict(sample_world_state.locations),
+            characters={
+                **dict(sample_world_state.characters),
+                "player": player_with_inv,
+            },
+            items=dict(sample_world_state.items),
+        )
+        completer = ContextualCompleter(state_provider=lambda: state)
+        doc = Document("地", cursor_position=1)
+        completions = list(completer.get_completions(doc, None))
+        texts = [c.text for c in completions]
+        assert "地下室钥匙" in texts
+
+    def test_no_duplicate_items(self, sample_world_state):
+        from prompt_toolkit.document import Document
+
+        from tavern.cli.renderer import ContextualCompleter
+        from tavern.world.models import Character, CharacterRole, Exit, Location
+        from tavern.world.state import WorldState
+
+        player_with_inv = Character(
+            id="player",
+            name="冒险者",
+            role=CharacterRole.PLAYER,
+            traits=("勇敢",),
+            stats={"hp": 100, "gold": 10},
+            inventory=("old_notice",),
+            location_id="tavern_hall",
+        )
+        state = WorldState(
+            turn=sample_world_state.turn,
+            player_id=sample_world_state.player_id,
+            locations=dict(sample_world_state.locations),
+            characters={
+                **dict(sample_world_state.characters),
+                "player": player_with_inv,
+            },
+            items=dict(sample_world_state.items),
+        )
+        completer = ContextualCompleter(state_provider=lambda: state)
+        doc = Document("旧", cursor_position=1)
+        completions = list(completer.get_completions(doc, None))
+        texts = [c.text for c in completions]
+        assert texts.count("旧告示") == 1
+
+    def test_no_state_provider_returns_no_completions(self):
+        from prompt_toolkit.document import Document
+
+        from tavern.cli.renderer import ContextualCompleter
+
+        completer = ContextualCompleter(state_provider=None)
+        doc = Document("旅", cursor_position=1)
+        completions = list(completer.get_completions(doc, None))
+        assert completions == []
+
+
 class TestEntityHighlighting:
     def test_highlight_npc_names(self, sample_world_state):
         console = Console(file=StringIO(), force_terminal=True, width=80)

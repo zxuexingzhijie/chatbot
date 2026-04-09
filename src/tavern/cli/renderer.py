@@ -69,6 +69,67 @@ class SlashCommandCompleter(Completer):
                 )
 
 
+class ContextualCompleter(Completer):
+    def __init__(
+        self, state_provider: Callable[[], WorldState | None] | None = None
+    ):
+        self._state_provider = state_provider
+
+    def get_completions(self, document, complete_event):
+        text = document.text_before_cursor
+
+        if text.startswith("/"):
+            prefix = text[1:]
+            for cmd, desc in _COMMAND_COMPLETIONS:
+                if cmd.startswith(prefix):
+                    yield Completion(
+                        cmd, start_position=-len(prefix), display_meta=desc
+                    )
+            return
+
+        if not text:
+            return
+
+        state = self._state_provider() if self._state_provider else None
+        if state is None:
+            return
+
+        player = state.characters.get(state.player_id)
+        if player is None:
+            return
+        location = state.locations.get(player.location_id)
+        if location is None:
+            return
+
+        for npc_id in location.npcs:
+            npc = state.characters.get(npc_id)
+            if npc and npc.name.startswith(text):
+                yield Completion(
+                    npc.name, start_position=-len(text), display_meta="NPC"
+                )
+
+        seen_items: set[str] = set()
+        for item_id in location.items:
+            item = state.items.get(item_id)
+            if item and item.name.startswith(text):
+                seen_items.add(item.name)
+                yield Completion(
+                    item.name, start_position=-len(text), display_meta="物品"
+                )
+        for item_id in player.inventory:
+            item = state.items.get(item_id)
+            if item and item.name.startswith(text) and item.name not in seen_items:
+                yield Completion(
+                    item.name, start_position=-len(text), display_meta="物品"
+                )
+
+        for direction in location.exits:
+            if direction.startswith(text):
+                yield Completion(
+                    direction, start_position=-len(text), display_meta="出口"
+                )
+
+
 class Renderer:
     def __init__(
         self,
@@ -80,7 +141,10 @@ class Renderer:
         self.console = console or Console()
         self._typewriter_effect = typewriter_effect
         self._state_provider = state_provider
-        self._session = PromptSession(vi_mode=vi_mode, completer=SlashCommandCompleter())
+        self._session = PromptSession(
+            vi_mode=vi_mode,
+            completer=ContextualCompleter(state_provider=state_provider),
+        )
 
     def _highlight_entities(self, text: str) -> str:
         if self._state_provider is None:
