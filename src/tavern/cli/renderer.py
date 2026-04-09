@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -15,7 +16,7 @@ from rich.table import Table
 from tavern.dialogue.context import DialogueContext, DialogueResponse, DialogueSummary
 from tavern.engine.actions import ActionType
 from tavern.world.memory import Relationship
-from tavern.world.models import ActionResult
+from tavern.world.models import ActionResult, CharacterRole
 from tavern.world.persistence import SaveInfo
 from tavern.world.state import WorldState
 
@@ -74,10 +75,45 @@ class Renderer:
         console: Console | None = None,
         vi_mode: bool = False,
         typewriter_effect: bool = False,
+        state_provider: Callable[[], WorldState | None] | None = None,
     ):
         self.console = console or Console()
         self._typewriter_effect = typewriter_effect
+        self._state_provider = state_provider
         self._session = PromptSession(vi_mode=vi_mode, completer=SlashCommandCompleter())
+
+    def _highlight_entities(self, text: str) -> str:
+        if self._state_provider is None:
+            return text
+
+        state = self._state_provider()
+        if state is None:
+            return text
+
+        replacements: list[tuple[str, str]] = []
+
+        for char in state.characters.values():
+            if char.role == CharacterRole.NPC:
+                replacements.append((char.name, f"[bold cyan]{char.name}[/]"))
+
+        for item in state.items.values():
+            replacements.append((item.name, f"[cyan]{item.name}[/]"))
+
+        for loc in state.locations.values():
+            replacements.append((loc.name, f"[green]{loc.name}[/]"))
+
+        replacements.sort(key=lambda pair: len(pair[0]), reverse=True)
+
+        placeholders: list[tuple[str, str]] = []
+        for i, (original, highlighted) in enumerate(replacements):
+            placeholder = f"\x00ENTITY{i}\x00"
+            text = text.replace(original, placeholder)
+            placeholders.append((placeholder, highlighted))
+
+        for placeholder, highlighted in placeholders:
+            text = text.replace(placeholder, highlighted)
+
+        return text
 
     @asynccontextmanager
     async def spinner(self, message: str = "思考中..."):
@@ -114,20 +150,38 @@ class Renderer:
     async def render_stream(self, stream, *, atmosphere: str = "neutral") -> None:
         style = _ATMOSPHERE_STYLES.get(atmosphere, _ATMOSPHERE_STYLES["neutral"])
         self.console.print()
+        line_buffer = ""
         accumulated = ""
         try:
             async for chunk in stream:
-                self.console.print(chunk, end="", style=style, highlight=False)
-                if self._typewriter_effect:
-                    accumulated += chunk
-                    if accumulated.endswith("\n\n"):
-                        await asyncio.sleep(_TYPEWRITER_PAUSES["\n\n"])
-                    else:
-                        last_char = chunk.rstrip()[-1:] if chunk.rstrip() else ""
+                line_buffer += chunk
+                accumulated += chunk
+
+                while "\n" in line_buffer:
+                    line, line_buffer = line_buffer.split("\n", 1)
+                    highlighted = self._highlight_entities(line)
+                    self.console.print(highlighted, end="\n", style=style, highlight=False)
+
+                    if self._typewriter_effect:
+                        stripped = line.rstrip()
+                        last_char = stripped[-1:] if stripped else ""
                         if last_char in _TYPEWRITER_PAUSES:
                             await asyncio.sleep(_TYPEWRITER_PAUSES[last_char])
+
+                if self._typewriter_effect and not line_buffer:
+                    if accumulated.endswith("\n\n"):
+                        await asyncio.sleep(_TYPEWRITER_PAUSES["\n\n"])
         except Exception as exc:
             logger.warning("render_stream interrupted: %s", exc)
+
+        if line_buffer:
+            highlighted = self._highlight_entities(line_buffer)
+            self.console.print(highlighted, end="", style=style, highlight=False)
+            if self._typewriter_effect:
+                stripped = line_buffer.rstrip()
+                last_char = stripped[-1:] if stripped else ""
+                if last_char in _TYPEWRITER_PAUSES:
+                    await asyncio.sleep(_TYPEWRITER_PAUSES[last_char])
         self.console.print("\n")
 
     def render_inventory(self, state: WorldState) -> None:

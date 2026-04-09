@@ -402,3 +402,60 @@ class TestTypewriterEffect:
         with patch("tavern.cli.renderer.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             await renderer.render_stream(_async_gen("你好。"))
             mock_sleep.assert_not_called()
+
+
+class TestEntityHighlighting:
+    def test_highlight_npc_names(self, sample_world_state):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console, state_provider=lambda: sample_world_state)
+        result = renderer._highlight_entities("旅行者正在喝酒。")
+        assert "[bold cyan]旅行者[/]" in result
+
+    def test_highlight_item_names(self, sample_world_state):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console, state_provider=lambda: sample_world_state)
+        result = renderer._highlight_entities("你看到了旧告示。")
+        assert "[cyan]旧告示[/]" in result
+
+    def test_highlight_location_names(self, sample_world_state):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console, state_provider=lambda: sample_world_state)
+        result = renderer._highlight_entities("你走进酒馆大厅。")
+        assert "[green]酒馆大厅[/]" in result
+
+    def test_highlight_longer_names_first(self, sample_world_state):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console, state_provider=lambda: sample_world_state)
+        result = renderer._highlight_entities("地下室钥匙很重要。")
+        assert "[cyan]地下室钥匙[/]" in result
+
+    def test_no_state_returns_unchanged(self):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console)
+        result = renderer._highlight_entities("旅行者正在喝酒。")
+        assert result == "旅行者正在喝酒。"
+
+    def test_no_state_provider_returns_none(self):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console, state_provider=lambda: None)
+        result = renderer._highlight_entities("旅行者正在喝酒。")
+        assert result == "旅行者正在喝酒。"
+
+    def test_player_name_not_highlighted(self, sample_world_state):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console, state_provider=lambda: sample_world_state)
+        result = renderer._highlight_entities("冒险者走进了大厅。")
+        assert "[bold cyan]冒险者[/]" not in result
+
+    @pytest.mark.asyncio
+    async def test_render_stream_with_highlighting(self, sample_world_state):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console, state_provider=lambda: sample_world_state)
+
+        async def _stream():
+            yield "旅行者走进了酒馆大厅。\n"
+
+        await renderer.render_stream(_stream())
+        output = console.file.getvalue()
+        assert "旅行者" in output
+        assert "酒馆大厅" in output
