@@ -4,19 +4,50 @@ CLI 互动式小说游戏 — 在奇幻酒馆中自由探索，与 NPC 对话，
 
 采用混合管道架构（规则引擎 + LLM），在保障剧情可控的前提下提供开放式叙事体验。
 
+## 安装
+
+### Homebrew（macOS / Linux）
+
+```bash
+brew tap zxuexingzhijie/tavern
+brew install tavern-game
+```
+
+### pip
+
+```bash
+# OpenAI 后端（默认）
+pip install tavern-game[openai]
+
+# Anthropic 后端
+pip install tavern-game[anthropic]
+
+# Ollama 本地模型
+pip install tavern-game[ollama]
+
+# 全部后端
+pip install tavern-game[all]
+```
+
+### 从源码安装
+
+```bash
+git clone https://github.com/zxuexingzhijie/chatbot.git
+cd chatbot
+pip install -e ".[dev]"
+```
+
 ## 快速开始
 
 ```bash
-# 安装
-pip install -e ".[dev]"
-
-# 配置 LLM（编辑 config.yaml 中的 API key 和模型）
-cp config.yaml config.yaml.bak
-vim config.yaml
+# 首次使用 — 交互式配置向导
+tavern init
 
 # 启动游戏
 tavern
 ```
+
+`tavern init` 会引导你选择 LLM 提供商、输入 API Key，并将配置保存到 `~/.config/tavern/config.yaml`。
 
 ## 系统要求
 
@@ -28,7 +59,7 @@ tavern
 
 ## 配置
 
-编辑 `config.yaml`：
+配置文件搜索顺序：`--config` 显式指定 → `~/.config/tavern/config.yaml` → `./config.yaml` → 内置默认配置
 
 ```yaml
 llm:
@@ -42,7 +73,7 @@ llm:
     temperature: 0.8
 
 game:
-  scenario: data/scenarios/tavern   # 场景目录
+  scenario: tavern          # 场景名称
   auto_save_interval: 5
   undo_history_size: 50
 ```
@@ -149,13 +180,14 @@ tavern run --config my_config.yaml
 
 **不可变状态**：所有状态变更通过 `StateDiff` 产生新对象，支持 undo/redo。
 
-**记忆系统**：事件时间线 + NetworkX 关系图 + 动态知识注入，NPC 对话根据上下文自适应。
+**记忆系统**：事件时间线 + 关系图 + 动态知识注入，NPC 对话根据上下文自适应。
 
 ## 项目结构
 
 ```
 src/tavern/
 ├── cli/           # 游戏主循环 + Rich 渲染
+├── data/          # 内置场景数据 + 默认配置
 ├── dialogue/      # NPC 对话系统
 ├── engine/        # 规则引擎 + 剧情节点引擎
 ├── llm/           # LLM 适配器（OpenAI / Anthropic / Ollama）
@@ -167,7 +199,7 @@ src/tavern/
 ## 开发
 
 ```bash
-# 安装开发依赖
+# 安装开发依赖（含全部 LLM 后端）
 pip install -e ".[dev]"
 
 # 运行测试
@@ -177,17 +209,22 @@ pytest
 pytest --cov=tavern
 ```
 
-## 依赖
+## 核心依赖
 
 | 库 | 用途 |
 |----|------|
 | rich | 终端 UI 渲染 |
 | pydantic | 数据模型与校验 |
-| networkx | NPC 关系图 |
-| openai | OpenAI LLM 客户端 |
-| httpx | Ollama HTTP 客户端 |
-| tenacity | 重试机制 |
 | pyyaml | YAML 场景文件解析 |
+| tenacity | 重试机制 |
+
+### 可选依赖（按 LLM 后端）
+
+| 库 | 安装方式 |
+|----|---------|
+| openai | `pip install tavern-game[openai]` |
+| anthropic | `pip install tavern-game[anthropic]` |
+| httpx | `pip install tavern-game[ollama]` |
 
 ## License
 
