@@ -1,124 +1,19 @@
 class TavernGame < Formula
-  include Language::Python::Virtualenv
-
   desc "CLI interactive fiction game — explore a fantasy tavern"
   homepage "https://github.com/zxuexingzhijie/chatbot"
-  url "https://github.com/zxuexingzhijie/chatbot/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  url "https://github.com/zxuexingzhijie/chatbot/archive/refs/tags/1.0.0.1.tar.gz"
+  sha256 "bb5c784736c0f87b8e8604ab49967b684ebeccb586d00284bf5b60599864d218"
   license "MIT"
 
   depends_on "python@3.12"
 
-  # Core dependencies
-  resource "pydantic" do
-    url "https://files.pythonhosted.org/packages/pydantic/pydantic-2.11.3.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  resource "pydantic-core" do
-    url "https://files.pythonhosted.org/packages/pydantic-core/pydantic_core-2.33.1.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  resource "rich" do
-    url "https://files.pythonhosted.org/packages/rich/rich-13.9.4.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  resource "pyyaml" do
-    url "https://files.pythonhosted.org/packages/pyyaml/PyYAML-6.0.2.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  resource "tenacity" do
-    url "https://files.pythonhosted.org/packages/tenacity/tenacity-9.0.0.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  # LLM backends (all included)
-  resource "openai" do
-    url "https://files.pythonhosted.org/packages/openai/openai-1.82.0.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  resource "anthropic" do
-    url "https://files.pythonhosted.org/packages/anthropic/anthropic-0.49.0.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  resource "httpx" do
-    url "https://files.pythonhosted.org/packages/httpx/httpx-0.28.1.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  # Transitive dependencies
-  resource "markdown-it-py" do
-    url "https://files.pythonhosted.org/packages/markdown-it-py/markdown_it_py-3.0.0.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  resource "mdurl" do
-    url "https://files.pythonhosted.org/packages/mdurl/mdurl-0.1.2.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  resource "pygments" do
-    url "https://files.pythonhosted.org/packages/pygments/pygments-2.19.1.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  resource "typing-extensions" do
-    url "https://files.pythonhosted.org/packages/typing-extensions/typing_extensions-4.13.2.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  resource "annotated-types" do
-    url "https://files.pythonhosted.org/packages/annotated-types/annotated_types-0.7.0.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  resource "httpcore" do
-    url "https://files.pythonhosted.org/packages/httpcore/httpcore-1.0.7.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  resource "anyio" do
-    url "https://files.pythonhosted.org/packages/anyio/anyio-4.9.0.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  resource "sniffio" do
-    url "https://files.pythonhosted.org/packages/sniffio/sniffio-1.3.1.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  resource "certifi" do
-    url "https://files.pythonhosted.org/packages/certifi/certifi-2025.1.31.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  resource "idna" do
-    url "https://files.pythonhosted.org/packages/idna/idna-3.10.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  resource "h11" do
-    url "https://files.pythonhosted.org/packages/h11/h11-0.14.0.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  resource "distro" do
-    url "https://files.pythonhosted.org/packages/distro/distro-1.9.0.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
-  resource "jiter" do
-    url "https://files.pythonhosted.org/packages/jiter/jiter-0.9.0.tar.gz"
-    sha256 "PLACEHOLDER"
-  end
-
   def install
-    virtualenv_install_with_resources
+    python3 = "python3.12"
+    venv = libexec
+    system python3, "-m", "venv", venv.to_s
+    system venv/"bin/pip", "install", "--upgrade", "pip"
+    system venv/"bin/pip", "install", "--no-cache-dir", buildpath.to_s
+    bin.install_symlink venv/"bin/tavern"
   end
 
   test do

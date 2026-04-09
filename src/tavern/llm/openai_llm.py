@@ -10,7 +10,7 @@ except ImportError:
 from pydantic import BaseModel
 from tenacity import retry, stop_after_attempt, wait_exponential
 
-from tavern.llm.adapter import LLMConfig, LLMRegistry
+from tavern.llm.adapter import LLMConfig
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -83,6 +83,3 @@ class OpenAIAdapter:
             delta = chunk.choices[0].delta
             if delta.content:
                 yield delta.content
-
-
-LLMRegistry.register("openai", OpenAIAdapter)

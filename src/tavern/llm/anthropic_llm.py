@@ -15,7 +15,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from tavern.llm.adapter import LLMConfig, LLMRegistry
+from tavern.llm.adapter import LLMConfig
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -98,6 +98,3 @@ class AnthropicAdapter:
         async with self._client.messages.stream(**kwargs) as s:
             async for chunk in s.text_stream:
                 yield chunk
-
-
-LLMRegistry.register("anthropic", AnthropicAdapter)

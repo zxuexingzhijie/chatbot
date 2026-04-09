@@ -15,7 +15,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from tavern.llm.adapter import LLMConfig, LLMError, LLMRegistry
+from tavern.llm.adapter import LLMConfig, LLMError
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -125,6 +125,3 @@ class OllamaAdapter:
 
     async def aclose(self) -> None:
         await self._client.aclose()
-
-
-LLMRegistry.register("ollama", OllamaAdapter)
