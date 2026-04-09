@@ -628,9 +628,9 @@ nodes:
 
 
 def test_load_tavern_story_yaml_includes_endings():
-    from pathlib import Path
+    from tavern.data import get_bundled_scenario
     from tavern.engine.story import load_story_nodes
-    path = Path("data/scenarios/tavern/story.yaml")
+    path = get_bundled_scenario("tavern") / "story.yaml"
     if not path.exists():
         pytest.skip("tavern story.yaml not found")
     nodes = load_story_nodes(path)

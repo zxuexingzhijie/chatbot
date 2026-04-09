@@ -2,11 +2,12 @@ from pathlib import Path
 
 import pytest
 
+from tavern.data import get_bundled_scenario
 from tavern.world.loader import load_scenario
 from tavern.world.models import CharacterRole
 from tavern.world.state import WorldState
 
-SCENARIO_PATH = Path(__file__).parent.parent.parent / "data" / "scenarios" / "tavern"
+SCENARIO_PATH = get_bundled_scenario("tavern")
 
 
 class TestLoadScenario:

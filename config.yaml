@@ -41,7 +41,7 @@ game:
   auto_save_interval: 5
   undo_history_size: 50
   saves_dir: "saves"
-  scenario: data/scenarios/tavern
+  scenario: tavern
 
 debug:
   show_intent_json: false

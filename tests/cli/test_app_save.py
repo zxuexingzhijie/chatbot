@@ -41,7 +41,8 @@ def app(mock_state, tmp_path):
     game._dialogue_manager = MagicMock()
     game._dialogue_manager.is_active = False
     game._dialogue_ctx = None
-    game._scenario_path = Path("data/scenarios/tavern")
+    from tavern.data import get_bundled_scenario
+    game._scenario_path = get_bundled_scenario("tavern")
     game._game_config = {"saves_dir": str(tmp_path / "saves"), "undo_history_size": 50}
     game._save_manager = SaveManager(tmp_path / "saves")
     return game

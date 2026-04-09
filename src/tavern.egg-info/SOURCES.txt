@@ -11,6 +11,17 @@ src/tavern.egg-info/top_level.txt
 src/tavern/cli/__init__.py
 src/tavern/cli/app.py
 src/tavern/cli/renderer.py
+src/tavern/data/__init__.py
+src/tavern/data/scenarios/tavern/characters.yaml
+src/tavern/data/scenarios/tavern/scenario.yaml
+src/tavern/data/scenarios/tavern/story.yaml
+src/tavern/data/scenarios/tavern/world.yaml
+src/tavern/data/scenarios/tavern/skills/.gitkeep
+src/tavern/data/scenarios/tavern/skills/bartender_letter_hint.yaml
+src/tavern/data/scenarios/tavern/skills/guest_quest_info.yaml
+src/tavern/data/scenarios/tavern/skills/guest_secret_knowledge.yaml
+src/tavern/data/scenarios/tavern/skills/traveler_gratitude.yaml
+src/tavern/data/scenarios/tavern/skills/traveler_quest_info.yaml
 src/tavern/dialogue/__init__.py
 src/tavern/dialogue/context.py
 src/tavern/dialogue/manager.py
@@ -24,6 +35,7 @@ src/tavern/engine/use_effects.py
 src/tavern/llm/__init__.py
 src/tavern/llm/adapter.py
 src/tavern/llm/anthropic_llm.py
+src/tavern/llm/ollama_llm.py
 src/tavern/llm/openai_llm.py
 src/tavern/llm/service.py
 src/tavern/narrator/__init__.py
@@ -36,6 +48,8 @@ src/tavern/world/loader.py
 src/tavern/world/memory.py
 src/tavern/world/models.py
 src/tavern/world/persistence.py
+src/tavern/world/scenario.py
 src/tavern/world/skills.py
 src/tavern/world/state.py
 tests/test_integration.py
+tests/test_main.py
