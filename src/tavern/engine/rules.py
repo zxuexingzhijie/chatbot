@@ -321,11 +321,12 @@ def _handle_talk(request: ActionRequest, state: WorldState):
 
 
 def _handle_custom(request: ActionRequest, state: WorldState):
+    detail = request.detail or "某些事情"
     return (
         ActionResult(
             success=True,
             action=ActionType.CUSTOM,
-            message=f"你尝试了: {request.detail or '某些事情'}",
+            message=f"你尝试{detail}，但结果不太明朗。",
             detail=request.detail,
         ),
         None,

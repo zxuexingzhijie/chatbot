@@ -41,6 +41,7 @@ class IntentParser:
                 action=ActionType.CUSTOM,
                 detail=player_input,
                 confidence=0.0,
+                is_fallback=True,
             )
 
         if result.confidence < CONFIDENCE_THRESHOLD:
@@ -53,6 +54,7 @@ class IntentParser:
                 action=ActionType.CUSTOM,
                 detail=player_input,
                 confidence=result.confidence,
+                is_fallback=True,
             )
 
         return result

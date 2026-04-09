@@ -121,6 +121,7 @@ class ActionRequest(BaseModel):
     target: str | None = None
     detail: str | None = None
     confidence: float = 1.0
+    is_fallback: bool = False
 
 
 class ActionResult(BaseModel):

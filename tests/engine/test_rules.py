@@ -128,6 +128,15 @@ class TestCustomAction:
         assert diff is None
 
 
+def test_custom_action_message_narrative_style():
+    from tavern.engine.rules import _handle_custom
+
+    request = ActionRequest(action=ActionType.CUSTOM, detail="翻转桌子")
+    result, diff = _handle_custom(request, None)
+    assert "翻转桌子" in result.message
+    assert "尝试了:" not in result.message
+
+
 class TestTalkAction:
     def test_talk_npc_in_location(self, rules_engine, sample_world_state):
         request = ActionRequest(action=ActionType.TALK, target="traveler")

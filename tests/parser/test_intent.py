@@ -89,3 +89,57 @@ class TestIntentParser:
             exits=[],
         )
         assert result.action == ActionType.CUSTOM
+
+
+class TestIntentFallback:
+    @pytest.mark.asyncio
+    async def test_exception_sets_is_fallback_true(self, parser, mock_llm_service):
+        mock_llm_service.classify_intent = AsyncMock(
+            side_effect=Exception("LLM error")
+        )
+        result = await parser.parse(
+            "随便说说",
+            location_id="tavern_hall",
+            npcs=[],
+            items=[],
+            exits=[],
+        )
+        assert result.is_fallback is True
+
+    @pytest.mark.asyncio
+    async def test_low_confidence_sets_is_fallback_true(self, parser, mock_llm_service):
+        mock_llm_service.classify_intent = AsyncMock(
+            return_value=ActionRequest(
+                action=ActionType.MOVE,
+                target="bar_area",
+                detail="模糊",
+                confidence=0.3,
+            )
+        )
+        result = await parser.parse(
+            "嗯...",
+            location_id="tavern_hall",
+            npcs=[],
+            items=[],
+            exits=[],
+        )
+        assert result.is_fallback is True
+
+    @pytest.mark.asyncio
+    async def test_normal_parse_has_is_fallback_false(self, parser, mock_llm_service):
+        mock_llm_service.classify_intent = AsyncMock(
+            return_value=ActionRequest(
+                action=ActionType.MOVE,
+                target="bar_area",
+                detail="走向吧台",
+                confidence=0.95,
+            )
+        )
+        result = await parser.parse(
+            "去吧台",
+            location_id="tavern_hall",
+            npcs=[],
+            items=[],
+            exits=["north"],
+        )
+        assert result.is_fallback is False

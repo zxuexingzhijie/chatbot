@@ -296,6 +296,9 @@ class GameApp:
                 f"[dim]Intent: {request.model_dump_json()}[/]"
             )
 
+        if request.is_fallback:
+            self._renderer.console.print("[dim]（未能完全理解你的意图，尝试自由行动...）[/]")
+
         result, diff = self._rules.validate(request, self.state)
 
         if diff is not None:
