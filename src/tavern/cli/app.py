@@ -67,7 +67,8 @@ class GameApp:
         )
         self._rules = RulesEngine()
         vi_mode = game_config.get("vi_mode", False)
-        self._renderer = Renderer(vi_mode=vi_mode)
+        typewriter_effect = game_config.get("typewriter_effect", False)
+        self._renderer = Renderer(vi_mode=vi_mode, typewriter_effect=typewriter_effect)
 
         intent_raw = llm_config.get("intent", {
             "provider": "openai", "model": "gpt-4o-mini",

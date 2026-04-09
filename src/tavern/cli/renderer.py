@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -43,6 +44,14 @@ _ATMOSPHERE_STYLES: dict[str, str] = {
     "neutral": "italic dim",
 }
 
+_TYPEWRITER_PAUSES: dict[str, float] = {
+    "。": 0.3,
+    "！": 0.25,
+    "？": 0.25,
+    "…": 0.4,
+    "\n\n": 0.5,
+}
+
 
 class SlashCommandCompleter(Completer):
     def get_completions(self, document, complete_event):
@@ -60,8 +69,14 @@ class SlashCommandCompleter(Completer):
 
 
 class Renderer:
-    def __init__(self, console: Console | None = None, vi_mode: bool = False):
+    def __init__(
+        self,
+        console: Console | None = None,
+        vi_mode: bool = False,
+        typewriter_effect: bool = False,
+    ):
         self.console = console or Console()
+        self._typewriter_effect = typewriter_effect
         self._session = PromptSession(vi_mode=vi_mode, completer=SlashCommandCompleter())
 
     @asynccontextmanager
@@ -99,9 +114,18 @@ class Renderer:
     async def render_stream(self, stream, *, atmosphere: str = "neutral") -> None:
         style = _ATMOSPHERE_STYLES.get(atmosphere, _ATMOSPHERE_STYLES["neutral"])
         self.console.print()
+        accumulated = ""
         try:
             async for chunk in stream:
                 self.console.print(chunk, end="", style=style, highlight=False)
+                if self._typewriter_effect:
+                    accumulated += chunk
+                    if accumulated.endswith("\n\n"):
+                        await asyncio.sleep(_TYPEWRITER_PAUSES["\n\n"])
+                    else:
+                        last_char = chunk.rstrip()[-1:] if chunk.rstrip() else ""
+                        if last_char in _TYPEWRITER_PAUSES:
+                            await asyncio.sleep(_TYPEWRITER_PAUSES[last_char])
         except Exception as exc:
             logger.warning("render_stream interrupted: %s", exc)
         self.console.print("\n")

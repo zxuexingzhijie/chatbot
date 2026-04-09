@@ -1,5 +1,6 @@
 from io import StringIO
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from rich.console import Console
@@ -335,3 +336,69 @@ class TestAtmosphereStyles:
         await renderer.render_stream(_async_gen("未知氛围"), atmosphere="unknown_type")
         output = console.file.getvalue()
         assert "未知氛围" in output
+
+
+class TestTypewriterEffect:
+    @pytest.mark.asyncio
+    async def test_typewriter_pauses_on_period(self):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console, typewriter_effect=True)
+        with patch("tavern.cli.renderer.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            await renderer.render_stream(_async_gen("你好。"))
+            mock_sleep.assert_called()
+            delays = [call.args[0] for call in mock_sleep.call_args_list]
+            assert 0.3 in delays
+
+    @pytest.mark.asyncio
+    async def test_typewriter_pauses_on_exclamation(self):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console, typewriter_effect=True)
+        with patch("tavern.cli.renderer.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            await renderer.render_stream(_async_gen("太好了！"))
+            mock_sleep.assert_called()
+            delays = [call.args[0] for call in mock_sleep.call_args_list]
+            assert 0.25 in delays
+
+    @pytest.mark.asyncio
+    async def test_typewriter_pauses_on_ellipsis(self):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console, typewriter_effect=True)
+        with patch("tavern.cli.renderer.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            await renderer.render_stream(_async_gen("等等…"))
+            mock_sleep.assert_called()
+            delays = [call.args[0] for call in mock_sleep.call_args_list]
+            assert 0.4 in delays
+
+    @pytest.mark.asyncio
+    async def test_typewriter_pauses_on_double_newline(self):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console, typewriter_effect=True)
+        with patch("tavern.cli.renderer.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            await renderer.render_stream(_async_gen("第一段\n\n"))
+            mock_sleep.assert_called()
+            delays = [call.args[0] for call in mock_sleep.call_args_list]
+            assert 0.5 in delays
+
+    @pytest.mark.asyncio
+    async def test_typewriter_no_pause_on_normal_text(self):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console, typewriter_effect=True)
+        with patch("tavern.cli.renderer.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            await renderer.render_stream(_async_gen("普通文字"))
+            mock_sleep.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_typewriter_disabled_no_pause(self):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console, typewriter_effect=False)
+        with patch("tavern.cli.renderer.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            await renderer.render_stream(_async_gen("你好。太好了！"))
+            mock_sleep.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_typewriter_default_is_disabled(self):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console)
+        with patch("tavern.cli.renderer.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            await renderer.render_stream(_async_gen("你好。"))
+            mock_sleep.assert_not_called()

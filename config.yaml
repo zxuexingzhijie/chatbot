@@ -39,8 +39,9 @@ game:
   undo_history_size: 50
   saves_dir: "saves"
   scenario: tavern
+  typewriter_effect: true
 
 debug:
-  show_intent_json: false
-  show_prompt: false
-  log_level: WARNING
+  show_intent_json: true
+  show_prompt: true
+  log_level: DEBUG
