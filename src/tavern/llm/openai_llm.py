@@ -22,7 +22,7 @@ class OpenAIAdapter:
                 "openai 包未安装。请运行: pip install tavern[openai]"
             )
         self._config = config
-        api_key = config.api_key or os.environ.get("OPENAI_API_KEY")
+        api_key = config.api_key or (os.environ.get("OPENAI_API_KEY") or "").strip()
         self._client = AsyncOpenAI(
             api_key=api_key or "not-configured",
             base_url=config.base_url,

@@ -228,3 +228,49 @@ class TestRenderStream:
         output = console.file.getvalue()
         assert "你走进了" in output
         assert output.endswith("\n")
+
+
+class TestSlashCommandCompleter:
+    def test_completes_slash_commands(self):
+        from prompt_toolkit.document import Document
+        from tavern.cli.renderer import SlashCommandCompleter
+
+        completer = SlashCommandCompleter()
+        doc = Document("/", cursor_position=1)
+        completions = list(completer.get_completions(doc, None))
+        labels = [c.text for c in completions]
+        assert "look" in labels
+        assert "quit" in labels
+        assert "inventory" in labels
+        assert len(completions) == 11
+
+    def test_filters_by_prefix(self):
+        from prompt_toolkit.document import Document
+        from tavern.cli.renderer import SlashCommandCompleter
+
+        completer = SlashCommandCompleter()
+        doc = Document("/lo", cursor_position=3)
+        completions = list(completer.get_completions(doc, None))
+        labels = [c.text for c in completions]
+        assert "look" in labels
+        assert "load" in labels
+        assert "quit" not in labels
+
+    def test_no_completions_without_slash(self):
+        from prompt_toolkit.document import Document
+        from tavern.cli.renderer import SlashCommandCompleter
+
+        completer = SlashCommandCompleter()
+        doc = Document("hello", cursor_position=5)
+        completions = list(completer.get_completions(doc, None))
+        assert completions == []
+
+    def test_completions_have_display_meta(self):
+        from prompt_toolkit.document import Document
+        from tavern.cli.renderer import SlashCommandCompleter
+
+        completer = SlashCommandCompleter()
+        doc = Document("/qu", cursor_position=3)
+        completions = list(completer.get_completions(doc, None))
+        assert len(completions) == 1
+        assert completions[0].display_meta_text == "退出游戏"

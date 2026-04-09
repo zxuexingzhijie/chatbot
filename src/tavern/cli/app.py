@@ -41,6 +41,11 @@ class GameApp:
         llm_config = config.get("llm", {})
         game_config = config.get("game", {})
 
+        if not llm_config:
+            raise SystemExit(
+                "未找到 LLM 配置。请先运行 `tavern init` 完成初始化配置。"
+            )
+
         raw_scenario = game_config.get("scenario", "tavern")
         scenario_path = Path(raw_scenario)
         if not scenario_path.is_absolute() and not scenario_path.exists():
@@ -149,9 +154,9 @@ class GameApp:
 
         while not self._game_over:
             if self._dialogue_manager.is_active and self._dialogue_ctx is not None:
-                user_input = self._renderer.get_dialogue_input()
+                user_input = await self._renderer.get_dialogue_input()
             else:
-                user_input = self._renderer.get_input()
+                user_input = await self._renderer.get_input()
 
             if not user_input:
                 continue
@@ -397,7 +402,7 @@ class GameApp:
             trust_diff = StateDiff(
                 updated_characters={summary.npc_id: {"stats": new_stats}},
                 relationship_changes=(
-                    {"src": summary.npc_id, "tgt": state.player_id, "delta": summary.total_trust_delta},
+                    {"src": state.player_id, "tgt": summary.npc_id, "delta": summary.total_trust_delta},
                 ),
                 turn_increment=0,
             )
@@ -422,7 +427,34 @@ class GameApp:
             description=summary.summary_text,
             consequences=summary.key_info,
         )
-        event_diff = StateDiff(new_events=(event,), turn_increment=0)
+        talked_event = Event(
+            id=f"talked_to_{summary.npc_id}",
+            turn=self.state.turn,
+            type="dialogue_trigger",
+            actor=summary.npc_id,
+            description=f"与{npc.name if npc else summary.npc_id}进行了对话",
+        )
+        extra_events: list[Event] = [talked_event]
+
+        _KEY_INFO_EVENT_KEYWORDS = {
+            "letter": f"talked_to_{summary.npc_id}_about_letter",
+            "信件": f"talked_to_{summary.npc_id}_about_letter",
+        }
+        seen_event_ids: set[str] = set()
+        for info in (summary.key_info or ()):
+            info_lower = info.lower()
+            for keyword, event_id in _KEY_INFO_EVENT_KEYWORDS.items():
+                if keyword in info_lower and event_id not in seen_event_ids:
+                    seen_event_ids.add(event_id)
+                    extra_events.append(Event(
+                        id=event_id,
+                        turn=self.state.turn,
+                        type="dialogue_topic",
+                        actor=summary.npc_id,
+                        description=info,
+                    ))
+
+        event_diff = StateDiff(new_events=(event, *extra_events), turn_increment=0)
         self._state_manager.commit(
             event_diff,
             ActionResult(
@@ -467,11 +499,13 @@ class GameApp:
             if nid not in self.state.story_active_since
         }
         if since_updates:
+            diff = StateDiff(story_active_since_updates=since_updates, turn_increment=0)
             self._state_manager.commit(
-                StateDiff(story_active_since_updates=since_updates, turn_increment=0),
+                diff,
                 ActionResult(
                     success=True,
                     action=ActionType.CUSTOM,
                     message="故事进度更新",
                 ),
             )
+            self._memory.apply_diff(diff, self.state)

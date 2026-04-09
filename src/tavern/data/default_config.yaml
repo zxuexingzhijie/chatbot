@@ -1,13 +1,3 @@
-llm:
-  intent:
-    provider: openai
-    temperature: 0.1
-    max_tokens: 200
-  narrative:
-    provider: openai
-    temperature: 0.8
-    max_tokens: 500
-
 game:
   scenario: tavern
   auto_save_interval: 5

@@ -68,12 +68,18 @@ def mock_summary():
 class TestGameAppMemory:
     def test_memory_initialized_in_init(self, mock_state):
         """GameApp.__init__ creates a MemorySystem with initial_state."""
+        fake_config = {
+            "llm": {
+                "intent": {"provider": "openai", "model": "gpt-4o-mini"},
+                "narrative": {"provider": "openai", "model": "gpt-4o"},
+            },
+            "game": {"scenario": "tavern"},
+        }
         with patch("tavern.cli.app.load_scenario", return_value=mock_state), \
              patch("tavern.cli.app.validate_scenario", return_value=[]), \
              patch("tavern.cli.app.load_scenario_meta", return_value=MagicMock(name="Test")), \
              patch("tavern.cli.app.LLMRegistry") as mock_registry, \
-             patch("tavern.cli.app.yaml.safe_load", return_value={}), \
-             patch("builtins.open", MagicMock()), \
+             patch.object(GameApp, "_load_config", return_value=fake_config), \
              patch("pathlib.Path.exists", return_value=False), \
              patch("tavern.cli.app.MemorySystem") as mock_memory_cls:
             mock_registry.create.return_value = MagicMock()
@@ -199,8 +205,8 @@ class TestGameAppMemory:
         trust_diff = committed_diffs[0]
         assert len(trust_diff.relationship_changes) == 1
         rel_change = trust_diff.relationship_changes[0]
-        assert rel_change["src"] == "traveler"
-        assert rel_change["tgt"] == "player"
+        assert rel_change["src"] == "player"
+        assert rel_change["tgt"] == "traveler"
         assert rel_change["delta"] == 3
 
 

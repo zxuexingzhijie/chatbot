@@ -34,10 +34,13 @@ class AnthropicAdapter:
                 "anthropic 包未安装。请运行: pip install tavern[anthropic]"
             )
         self._config = config
-        api_key = config.api_key or os.environ.get("ANTHROPIC_API_KEY")
+        api_key = config.api_key or (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
+        base = config.base_url.rstrip("/") if config.base_url else None
+        if base and base.endswith("/v1"):
+            base = base[:-3]
         self._client = anthropic.AsyncAnthropic(
             api_key=api_key,
-            base_url=config.base_url,
+            base_url=base,
             timeout=config.timeout,
             max_retries=0,  # tenacity handles retry
         )

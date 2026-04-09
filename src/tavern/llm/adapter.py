@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import AsyncIterator, Protocol, TypeVar, runtime_checkable
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -20,6 +20,14 @@ class LLMConfig(BaseModel):
     api_key: str | None = None
     timeout: float = 30.0
     max_retries: int = 3
+
+    @field_validator("provider", "model", "base_url", "api_key", mode="before")
+    @classmethod
+    def strip_strings(cls, v: str | None) -> str | None:
+        if isinstance(v, str):
+            v = v.strip()
+            return v if v else None
+        return v
 
 
 @runtime_checkable

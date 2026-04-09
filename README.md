@@ -37,13 +37,13 @@ tavern init
 tavern
 ```
 
-`tavern init` 会引导你选择 LLM 提供商、输入 API Key，并将配置保存到 `~/.config/tavern/config.yaml`。
+`tavern init` 会引导你选择 LLM 提供商、输入 API Base URL（支持 GPT 兼容接口）、API Key、模型名称，并将配置保存到 `~/.config/tavern/config.yaml`。
 
 ## 系统要求
 
 - Python >= 3.12
 - LLM 后端（三选一）：
-  - OpenAI API（默认）
+  - OpenAI API（及任何 GPT 兼容接口，如 DeepSeek、通义千问、Azure OpenAI 等）
   - Anthropic API
   - [Ollama](https://ollama.com/)（本地部署，零成本）
 
@@ -55,7 +55,8 @@ tavern
 llm:
   intent:        # 意图解析（推荐轻量模型）
     provider: openai
-    model: gpt-4o-mini
+    model: gpt-4o-mini        # 自定义模型名称
+    base_url: https://...     # 可选，GPT 兼容接口地址
     temperature: 0.1
   narrative:     # 叙事生成（推荐创意模型）
     provider: openai
@@ -66,6 +67,22 @@ game:
   scenario: tavern          # 场景名称
   auto_save_interval: 5
   undo_history_size: 50
+```
+
+### 使用 GPT 兼容接口（DeepSeek 等）
+
+```yaml
+llm:
+  intent:
+    provider: openai
+    model: deepseek-chat
+    base_url: https://api.deepseek.com/v1
+    api_key: sk-xxx
+  narrative:
+    provider: openai
+    model: deepseek-chat
+    base_url: https://api.deepseek.com/v1
+    api_key: sk-xxx
 ```
 
 ### 使用 Ollama（本地模型）
@@ -82,6 +99,8 @@ llm:
 ```
 
 ### 使用 Anthropic
+
+注意：`base_url` 无需包含 `/v1` 后缀，SDK 会自动拼接。
 
 ```yaml
 llm:
@@ -104,18 +123,22 @@ llm:
 
 ### 系统命令
 
+以 `/` 开头的为系统命令，其余输入作为自然语言与世界互动。
+
 | 命令 | 说明 |
 |------|------|
-| `look` | 查看当前环境 |
-| `inventory` | 查看背包 |
-| `status` | 角色状态（属性、人际关系、任务进度） |
-| `hint` | 获取提示 |
-| `undo` | 回退上一步 |
-| `save [名称]` | 存档（默认: autosave） |
-| `load [名称]` | 读档 |
-| `saves` | 列出所有存档 |
-| `help` | 显示帮助 |
-| `quit` | 退出 |
+| `/look` | 查看当前环境 |
+| `/inventory` | 查看背包 |
+| `/status` | 角色状态（属性、人际关系、任务进度） |
+| `/hint` | 获取提示 |
+| `/undo` | 回退上一步 |
+| `/save [名称]` | 存档（默认: autosave） |
+| `/load [名称]` | 读档 |
+| `/saves` | 列出所有存档 |
+| `/help` | 显示帮助 |
+| `/quit` | 退出 |
+
+输入框支持 Vim 键绑定（`Esc` 进入 Normal 模式，`i` 回到 Insert 模式）。
 
 ## 内置场景：奇幻酒馆
 
@@ -204,6 +227,7 @@ pytest --cov=tavern
 | 库 | 用途 |
 |----|------|
 | rich | 终端 UI 渲染 |
+| prompt_toolkit | 输入框（Vim 模式） |
 | pydantic | 数据模型与校验 |
 | pyyaml | YAML 场景文件解析 |
 | tenacity | 重试机制 |

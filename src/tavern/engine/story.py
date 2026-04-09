@@ -164,12 +164,22 @@ def _build_result(node: StoryNode, state: "WorldState") -> StoryResult:
 
     new_endings = (node.effects.trigger_ending,) if node.effects.trigger_ending else ()
 
+    rel_changes: list[dict] = []
+    for char_id, deltas in node.effects.character_stat_deltas.items():
+        if "trust" in deltas:
+            rel_changes.append({
+                "src": state.player_id,
+                "tgt": char_id,
+                "delta": deltas["trust"],
+            })
+
     diff = StateDiff(
         new_events=events,
         quest_updates=quest_updates,
         updated_characters=updated_characters,
         updated_locations=updated_locations,
         character_stat_deltas=dict(node.effects.character_stat_deltas),
+        relationship_changes=tuple(rel_changes),
         new_endings=new_endings,
         turn_increment=0,
     )

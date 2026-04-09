@@ -73,9 +73,9 @@ def _collect_provider_config(provider: str) -> dict:
         base_url = input(
             "API Base URL (直接回车使用 OpenAI 官方地址，或输入兼容地址): "
         ).strip() or None
-        api_key = os.environ.get("OPENAI_API_KEY", "")
+        api_key = os.environ.get("OPENAI_API_KEY", "").strip()
         if not api_key:
-            api_key = getpass("API Key (输入后不显示): ")
+            api_key = getpass("API Key (输入后不显示): ").strip()
         intent_model = _require_input("意图解析模型名称 (如 gpt-4o-mini): ")
         narrative_model = _require_input("叙事生成模型名称 (如 gpt-4o): ")
         return _build_llm_config(
@@ -85,11 +85,11 @@ def _collect_provider_config(provider: str) -> dict:
 
     if provider == "anthropic":
         base_url = input(
-            "API Base URL (直接回车使用 Anthropic 官方地址，或输入兼容地址): "
+            "API Base URL (直接回车使用 Anthropic 官方地址，或输入兼容地址；注意：无需包含 /v1 后缀): "
         ).strip() or None
-        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
         if not api_key:
-            api_key = getpass("API Key (输入后不显示): ")
+            api_key = getpass("API Key (输入后不显示): ").strip()
         intent_model = _require_input("意图解析模型名称 (如 claude-haiku-4-5-20251001): ")
         narrative_model = _require_input("叙事生成模型名称 (如 claude-sonnet-4-6): ")
         return _build_llm_config(

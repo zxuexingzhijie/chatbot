@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 
 from prompt_toolkit import PromptSession
+from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.formatted_text import HTML
 from rich.console import Console
 from rich.panel import Panel
@@ -18,11 +19,40 @@ from tavern.world.state import WorldState
 
 logger = logging.getLogger(__name__)
 
+_COMMAND_COMPLETIONS: list[tuple[str, str]] = [
+    ("look", "查看当前环境"),
+    ("inventory", "查看背包"),
+    ("status", "查看角色状态"),
+    ("hint", "获取游戏提示"),
+    ("undo", "回退上一步"),
+    ("save", "存档"),
+    ("load", "读档"),
+    ("saves", "列出所有存档"),
+    ("continue", "推进剧情"),
+    ("help", "显示帮助"),
+    ("quit", "退出游戏"),
+]
+
+
+class SlashCommandCompleter(Completer):
+    def get_completions(self, document, complete_event):
+        text = document.text_before_cursor
+        if not text.startswith("/"):
+            return
+        prefix = text[1:]
+        for cmd, desc in _COMMAND_COMPLETIONS:
+            if cmd.startswith(prefix):
+                yield Completion(
+                    cmd,
+                    start_position=-len(prefix),
+                    display_meta=desc,
+                )
+
 
 class Renderer:
     def __init__(self, console: Console | None = None):
         self.console = console or Console()
-        self._session = PromptSession(vi_mode=True)
+        self._session = PromptSession(vi_mode=True, completer=SlashCommandCompleter())
 
     def render_status_bar(self, state: WorldState) -> None:
         player = state.characters[state.player_id]
@@ -182,9 +212,9 @@ class Renderer:
             table.add_row(s.slot, s.timestamp, str(s.path))
         self.console.print(table)
 
-    def get_input(self) -> str:
+    async def get_input(self) -> str:
         try:
-            return self._session.prompt(HTML("<ansigreen><b>▸ </b></ansigreen>")).strip()
+            return (await self._session.prompt_async(HTML("<ansigreen><b>▸ </b></ansigreen>"))).strip()
         except (EOFError, KeyboardInterrupt):
             return "/quit"
 
@@ -256,8 +286,8 @@ class Renderer:
             )
         )
 
-    def get_dialogue_input(self) -> str:
+    async def get_dialogue_input(self) -> str:
         try:
-            return self._session.prompt(HTML("<ansicyan><b>对话▸ </b></ansicyan>")).strip()
+            return (await self._session.prompt_async(HTML("<ansicyan><b>对话▸ </b></ansicyan>"))).strip()
         except (EOFError, KeyboardInterrupt):
             return "bye"

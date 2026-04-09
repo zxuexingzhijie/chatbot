@@ -446,10 +446,28 @@ def _merge_diffs(a: StateDiff, b: StateDiff) -> StateDiff:
     )
 
 
+def _handle_search(request: ActionRequest, state: WorldState):
+    location = _get_player_location(state)
+
+    if request.target is not None:
+        return _look_at_target(request.target, state, location)
+
+    result, _ = _look_at_location(state, location)
+    event = Event(
+        id=f"searched_{location.id}",
+        turn=state.turn,
+        type="search",
+        actor=state.player_id,
+        description=f"仔细搜索了{location.name}",
+    )
+    diff = StateDiff(new_events=(event,), turn_increment=0)
+    return result, diff
+
+
 _ACTION_HANDLERS = {
     ActionType.MOVE: _handle_move,
     ActionType.LOOK: _handle_look,
-    ActionType.SEARCH: _handle_look,
+    ActionType.SEARCH: _handle_search,
     ActionType.TAKE: _handle_take,
     ActionType.TALK: _handle_talk,
     ActionType.PERSUADE: _handle_talk,
