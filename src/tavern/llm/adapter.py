@@ -7,6 +7,10 @@ from pydantic import BaseModel
 T = TypeVar("T", bound=BaseModel)
 
 
+class LLMError(Exception):
+    """LLM adapter error."""
+
+
 class LLMConfig(BaseModel):
     provider: str
     model: str
