@@ -190,6 +190,22 @@ async def test_stream_with_system_passes_system_kwarg():
 
 # ── API key / registry ─────────────────────────────────────────────────────
 
+@pytest.mark.asyncio
+async def test_complete_uses_8192_when_max_tokens_none():
+    mock_response = MagicMock()
+    mock_response.content = [MagicMock(text="ok")]
+
+    mock_client = AsyncMock()
+    mock_client.messages.create = AsyncMock(return_value=mock_response)
+
+    adapter = AnthropicAdapter(config=LLMConfig(provider="anthropic", model="claude-3-haiku-20240307"))
+    adapter._client = mock_client
+
+    await adapter.complete([{"role": "user", "content": "hi"}])
+    call_kwargs = mock_client.messages.create.call_args.kwargs
+    assert call_kwargs["max_tokens"] == 8192
+
+
 def test_api_key_env_fallback(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "env-key-123")
     with patch("anthropic.AsyncAnthropic") as mock_cls:

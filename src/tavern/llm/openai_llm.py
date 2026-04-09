@@ -50,8 +50,9 @@ class OpenAIAdapter:
             "model": self._config.model,
             "messages": messages,
             "temperature": self._config.temperature,
-            "max_tokens": self._config.max_tokens,
         }
+        if self._config.max_tokens is not None:
+            kwargs["max_tokens"] = self._config.max_tokens
 
         if response_format is not None:
             kwargs["response_format"] = {"type": "json_object"}
@@ -72,13 +73,15 @@ class OpenAIAdapter:
         return content
 
     async def stream(self, messages: list[dict]) -> AsyncIterator[str]:
-        response = await self._client.chat.completions.create(
-            model=self._config.model,
-            messages=messages,
-            temperature=self._config.temperature,
-            max_tokens=self._config.max_tokens,
-            stream=True,
-        )
+        kwargs: dict = {
+            "model": self._config.model,
+            "messages": messages,
+            "temperature": self._config.temperature,
+            "stream": True,
+        }
+        if self._config.max_tokens is not None:
+            kwargs["max_tokens"] = self._config.max_tokens
+        response = await self._client.chat.completions.create(**kwargs)
         async for chunk in response:
             delta = chunk.choices[0].delta
             if delta.content:

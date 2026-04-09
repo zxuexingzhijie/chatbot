@@ -15,7 +15,7 @@ class LLMConfig(BaseModel):
     provider: str
     model: str
     temperature: float = 0.5
-    max_tokens: int = 500
+    max_tokens: int | None = None
     base_url: str | None = None
     api_key: str | None = None
     timeout: float = 30.0

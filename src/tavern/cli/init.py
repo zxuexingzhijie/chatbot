@@ -43,13 +43,11 @@ def _build_llm_config(
         "provider": provider,
         "model": intent_model,
         "temperature": 0.1,
-        "max_tokens": 200,
     }
     narrative: dict = {
         "provider": provider,
         "model": narrative_model,
         "temperature": 0.8,
-        "max_tokens": 500,
     }
     if api_key:
         intent["api_key"] = api_key

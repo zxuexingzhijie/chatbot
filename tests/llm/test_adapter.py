@@ -12,10 +12,18 @@ from tavern.world.models import ActionRequest
 class TestLLMConfig:
     def test_create_config(self):
         config = LLMConfig(
-            provider="openai", model="gpt-4o-mini", temperature=0.1, max_tokens=200
+            provider="openai", model="gpt-4o-mini", temperature=0.1
         )
         assert config.provider == "openai"
         assert config.model == "gpt-4o-mini"
+
+    def test_default_max_tokens_is_none(self):
+        config = LLMConfig(provider="openai", model="gpt-4o-mini")
+        assert config.max_tokens is None
+
+    def test_explicit_max_tokens(self):
+        config = LLMConfig(provider="openai", model="gpt-4o-mini", max_tokens=1000)
+        assert config.max_tokens == 1000
 
     def test_default_values(self):
         config = LLMConfig(provider="openai", model="gpt-4o-mini")
@@ -73,6 +81,40 @@ class TestOpenAIAdapter:
         messages = [{"role": "user", "content": "test"}]
         result = await adapter.complete(messages)
         assert result == "你走向吧台。"
+
+    @pytest.mark.asyncio
+    async def test_complete_omits_max_tokens_when_none(self):
+        mock_client = AsyncMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "你走向吧台。"
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+        adapter = OpenAIAdapter(
+            config=LLMConfig(provider="openai", model="gpt-4o-mini")
+        )
+        adapter._client = mock_client
+
+        await adapter.complete([{"role": "user", "content": "test"}])
+        call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert "max_tokens" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_complete_sends_max_tokens_when_set(self):
+        mock_client = AsyncMock()
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "你走向吧台。"
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+        adapter = OpenAIAdapter(
+            config=LLMConfig(provider="openai", model="gpt-4o-mini", max_tokens=1000)
+        )
+        adapter._client = mock_client
+
+        await adapter.complete([{"role": "user", "content": "test"}])
+        call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert call_kwargs["max_tokens"] == 1000
 
 
 class TestLLMService:
