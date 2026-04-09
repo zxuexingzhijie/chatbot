@@ -1,5 +1,5 @@
 [project]
-name = "tavern"
+name = "tavern-game"
 version = "0.1.0"
 description = "CLI interactive novel game — fantasy tavern exploration"
 requires-python = ">=3.12"
@@ -26,6 +26,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+tavern = ["data/**/*.yaml", "data/**/.gitkeep"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
