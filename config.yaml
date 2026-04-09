@@ -42,4 +42,4 @@ game:
 debug:
   show_intent_json: false
   show_prompt: false
-  log_level: INFO
+  log_level: WARNING

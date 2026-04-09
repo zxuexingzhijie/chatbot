@@ -105,8 +105,10 @@ class GameApp:
 
         debug_config = config.get("debug", {})
         self._show_intent = debug_config.get("show_intent_json", False)
-        log_level = debug_config.get("log_level", "INFO")
-        logging.basicConfig(level=getattr(logging, log_level, logging.INFO))
+        log_level = debug_config.get("log_level", "WARNING")
+        logging.basicConfig(level=getattr(logging, log_level, logging.WARNING))
+        logging.getLogger("httpx").setLevel(logging.WARNING)
+        logging.getLogger("httpcore").setLevel(logging.WARNING)
 
     @staticmethod
     def _load_config(path: str | None) -> dict:
