@@ -5,8 +5,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import networkx as nx
-
 from tavern.world.models import Event
 
 if TYPE_CHECKING:
@@ -78,30 +76,31 @@ class EventTimeline:
 
 class RelationshipGraph:
     def __init__(self, snapshot: dict | None = None) -> None:
+        self._g: dict[str, dict[str, int]] = {}
         if snapshot is not None:
             try:
-                self._g: nx.DiGraph = nx.node_link_graph(snapshot, directed=True, edges="links")
+                for link in snapshot["links"]:
+                    src, tgt = link["source"], link["target"]
+                    self._g.setdefault(src, {})[tgt] = link["value"]
             except Exception:
                 logger.warning("RelationshipGraph: snapshot corrupt, initializing empty graph")
-                self._g = nx.DiGraph()
-        else:
-            self._g = nx.DiGraph()
+                self._g = {}
 
     def get(self, src: str, tgt: str) -> Relationship:
-        value = self._g.edges.get((src, tgt), {}).get("value", 0)
+        value = self._g.get(src, {}).get(tgt, 0)
         return Relationship(src=src, tgt=tgt, value=value)
 
     def update(self, delta: RelationshipDelta) -> Relationship:
-        current = self.get(delta.src, delta.tgt).value
+        current = self._g.get(delta.src, {}).get(delta.tgt, 0)
         new_value = max(-100, min(100, current + delta.delta))
-        self._g.add_edge(delta.src, delta.tgt, value=new_value)
+        self._g.setdefault(delta.src, {})[delta.tgt] = new_value
         return Relationship(src=delta.src, tgt=delta.tgt, value=new_value)
 
     def get_all_for(self, char_id: str) -> list[Relationship]:
         return [
-            Relationship(src=char_id, tgt=tgt, value=data.get("value", 0))
-            for tgt, data in self._g[char_id].items()
-        ] if char_id in self._g else []
+            Relationship(src=char_id, tgt=tgt, value=val)
+            for tgt, val in self._g.get(char_id, {}).items()
+        ]
 
     def describe_for_prompt(self, char_id: str) -> str:
         rels = self.get_all_for(char_id)
@@ -123,7 +122,20 @@ class RelationshipGraph:
         return "\n".join(lines)
 
     def to_snapshot(self) -> dict:
-        return nx.node_link_data(self._g, edges="links")
+        nodes: set[str] = set()
+        links: list[dict] = []
+        for src, targets in self._g.items():
+            nodes.add(src)
+            for tgt, value in targets.items():
+                nodes.add(tgt)
+                links.append({"source": src, "target": tgt, "value": value})
+        return {
+            "directed": True,
+            "multigraph": False,
+            "graph": {},
+            "nodes": [{"id": n} for n in sorted(nodes)],
+            "links": links,
+        }
 
 
 class MemorySystem:

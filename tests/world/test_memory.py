@@ -178,6 +178,22 @@ class TestRelationshipGraph:
         assert any("corrupt" in r.message.lower() or "snapshot" in r.message.lower()
                    for r in caplog.records)
 
+    def test_loads_legacy_networkx_snapshot(self):
+        """Verify backward compat with snapshots produced by the old networkx implementation."""
+        from tavern.world.memory import RelationshipGraph
+        legacy_snapshot = {
+            "directed": True,
+            "multigraph": False,
+            "graph": {},
+            "nodes": [{"id": "player"}, {"id": "traveler"}],
+            "links": [{"source": "player", "target": "traveler", "value": 30}],
+        }
+        graph = RelationshipGraph(snapshot=legacy_snapshot)
+        rel = graph.get("player", "traveler")
+        assert rel.value == 30
+        new_snapshot = graph.to_snapshot()
+        assert new_snapshot["links"][0]["value"] == 30
+
 
 class TestMemorySystem:
     def _make_state(self, trust: int = 0):
