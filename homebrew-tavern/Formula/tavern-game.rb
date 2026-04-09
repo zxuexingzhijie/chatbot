@@ -7,10 +7,10 @@ class TavernGame < Formula
 
   depends_on "python@3.12"
 
-  # Rust-built wheels (jiter, pydantic-core) have minimal Mach-O header
-  # padding — Homebrew's dylib ID rewrite fails on them. Safe to skip
-  # because Python extension modules don't use dylib IDs for loading.
-  skip_clean "libexec"
+  # Rust-built wheels (jiter, pydantic-core) use @rpath dylib IDs with
+  # minimal Mach-O header padding. preserve_rpath prevents Homebrew from
+  # rewriting them to absolute paths that won't fit in the header.
+  preserve_rpath
 
   def install
     python3 = "python3.12"
