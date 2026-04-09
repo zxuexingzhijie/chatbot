@@ -153,3 +153,10 @@ async def test_stream_raises_llm_error_on_http_failure():
     with pytest.raises(LLMError, match="Ollama stream failed"):
         async for _ in adapter.stream([{"role": "user", "content": "hi"}]):
             pass
+
+
+def test_registry_registers_ollama():
+    from tavern.llm.ollama_llm import OllamaAdapter
+    config = LLMConfig(provider="ollama", model="llama3:8b")
+    adapter = LLMRegistry.create(config)
+    assert isinstance(adapter, OllamaAdapter)
