@@ -1,8 +1,8 @@
 class TavernGame < Formula
   desc "CLI interactive fiction game — explore a fantasy tavern"
   homepage "https://github.com/zxuexingzhijie/chatbot"
-  url "https://github.com/zxuexingzhijie/chatbot/archive/refs/tags/1.0.0.1.tar.gz"
-  sha256 "bb5c784736c0f87b8e8604ab49967b684ebeccb586d00284bf5b60599864d218"
+  url "https://github.com/zxuexingzhijie/chatbot/archive/refs/tags/1.0.0.2.tar.gz"
+  sha256 "c86561f9219f214fba2a39dc11b488f4dd765e76e99dd73cd4f1a268983e04e9"
   license "MIT"
 
   depends_on "python@3.12"
