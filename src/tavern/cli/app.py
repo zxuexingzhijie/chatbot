@@ -20,6 +20,7 @@ from tavern.llm.ollama_llm import OllamaAdapter  # noqa: F401 — triggers regis
 from tavern.llm.service import LLMService
 from tavern.parser.intent import IntentParser
 from tavern.world.loader import load_scenario
+from tavern.world.scenario import validate_scenario, load_scenario_meta
 from tavern.world.memory import MemorySystem
 from tavern.world.models import ActionRequest, ActionResult, Event
 from tavern.world.state import StateManager, StateDiff, WorldState
@@ -44,6 +45,14 @@ class GameApp:
         game_config = config.get("game", {})
 
         scenario_path = Path(game_config.get("scenario", "data/scenarios/tavern"))
+        errors = validate_scenario(scenario_path)
+        if errors:
+            from rich.console import Console
+            err_console = Console(stderr=True)
+            for e in errors:
+                err_console.print(f"[red]✗ {e}[/]")
+            raise SystemExit(1)
+        self._scenario_meta = load_scenario_meta(scenario_path)
         initial_state = load_scenario(scenario_path)
 
         self._state_manager = StateManager(
@@ -106,7 +115,7 @@ class GameApp:
         return self._state_manager.current
 
     async def run(self) -> None:
-        self._renderer.render_welcome(self.state)
+        self._renderer.render_welcome(self.state, self._scenario_meta.name)
         self._renderer.render_status_bar(self.state)
 
         while not self._game_over:

@@ -69,6 +69,8 @@ class TestGameAppMemory:
     def test_memory_initialized_in_init(self, mock_state):
         """GameApp.__init__ creates a MemorySystem with initial_state."""
         with patch("tavern.cli.app.load_scenario", return_value=mock_state), \
+             patch("tavern.cli.app.validate_scenario", return_value=[]), \
+             patch("tavern.cli.app.load_scenario_meta", return_value=MagicMock(name="Test")), \
              patch("tavern.cli.app.LLMRegistry") as mock_registry, \
              patch("tavern.cli.app.yaml.safe_load", return_value={}), \
              patch("builtins.open", MagicMock()), \

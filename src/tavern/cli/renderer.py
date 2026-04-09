@@ -129,10 +129,10 @@ class Renderer:
             )
         )
 
-    def render_welcome(self, state: WorldState) -> None:
+    def render_welcome(self, state: WorldState, scenario_name: str = "醉龙酒馆") -> None:
         self.console.print(
             Panel(
-                "[bold]醉龙酒馆[/]\n\n"
+                f"[bold]{scenario_name}[/]\n\n"
                 "欢迎来到奇幻世界的互动小说体验。\n"
                 "输入自然语言与世界互动，输入 [cyan]help[/] 查看命令列表。",
                 title="🐉 Tavern",
