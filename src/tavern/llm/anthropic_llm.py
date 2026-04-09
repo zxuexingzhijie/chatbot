@@ -73,7 +73,7 @@ class AnthropicAdapter:
 
         kwargs: dict = {
             "model": self._config.model,
-            "max_tokens": self._config.max_tokens or 8192,
+            "max_tokens": self._config.max_tokens if self._config.max_tokens is not None else 8192,
             "temperature": self._config.temperature,
             "messages": user_messages,
         }
@@ -91,7 +91,7 @@ class AnthropicAdapter:
         system, user_messages = _split_system(messages)
         kwargs: dict = {
             "model": self._config.model,
-            "max_tokens": self._config.max_tokens or 8192,
+            "max_tokens": self._config.max_tokens if self._config.max_tokens is not None else 8192,
             "temperature": self._config.temperature,
             "messages": user_messages,
         }
