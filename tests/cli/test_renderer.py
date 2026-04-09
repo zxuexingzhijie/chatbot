@@ -83,8 +83,55 @@ class TestRenderer:
         assert "load" in output
         assert "saves" in output
 
+    def test_render_status_shows_stats_compact(self, renderer, sample_world_state, console):
+        renderer.render_status(sample_world_state, [])
+        output = console.file.getvalue()
+        assert "hp" in output
+        assert "100" in output
+        assert "gold" in output
 
-from io import StringIO
+    def test_render_status_shows_relationships(self, renderer, sample_world_state, console):
+        from tavern.world.memory import Relationship
+        rels = [
+            Relationship(src="player", tgt="traveler", value=25),
+            Relationship(src="player", tgt="bartender_grim", value=-25),
+        ]
+        renderer.render_status(sample_world_state, rels)
+        output = console.file.getvalue()
+        assert "友好" in output
+        assert "敌对" in output
+
+    def test_render_status_shows_npc_names(self, renderer, sample_world_state, console):
+        from tavern.world.memory import Relationship
+        rels = [Relationship(src="player", tgt="traveler", value=10)]
+        renderer.render_status(sample_world_state, rels)
+        output = console.file.getvalue()
+        assert "旅行者" in output
+
+    def test_render_status_empty_relationships(self, renderer, sample_world_state, console):
+        renderer.render_status(sample_world_state, [])
+        output = console.file.getvalue()
+        assert "尚无人际关系记录" in output
+
+    def test_render_status_shows_quests(self, renderer, sample_world_state, console):
+        from tavern.world.state import StateDiff
+        diff = StateDiff(
+            quest_updates={"cellar_mystery": {"status": "active"}, "traveler_quest": {"status": "completed"}},
+            turn_increment=0,
+        )
+        state_with_quests = sample_world_state.apply(diff)
+        renderer.render_status(state_with_quests, [])
+        output = console.file.getvalue()
+        assert "cellar_mystery" in output
+        assert "active" in output
+        assert "completed" in output
+
+    def test_render_status_empty_quests(self, renderer, sample_world_state, console):
+        renderer.render_status(sample_world_state, [])
+        output = console.file.getvalue()
+        assert "暂无任务记录" in output
+
+
 from tavern.dialogue.context import DialogueContext, DialogueResponse, DialogueSummary
 
 

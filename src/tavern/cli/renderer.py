@@ -9,6 +9,7 @@ from rich.table import Table
 
 from tavern.dialogue.context import DialogueContext, DialogueResponse, DialogueSummary
 from tavern.engine.actions import ActionType
+from tavern.world.memory import Relationship
 from tavern.world.models import ActionResult
 from tavern.world.persistence import SaveInfo
 from tavern.world.state import WorldState
@@ -69,12 +70,64 @@ class Renderer:
             self.console.print(f"  [cyan]•[/] {name} — [dim]{desc}[/]")
         self.console.print()
 
-    def render_status(self, state: WorldState) -> None:
+    @staticmethod
+    def _relationship_label(value: int) -> tuple[str, str]:
+        if value >= 60:
+            return "非常友好", "bright_green"
+        if value >= 20:
+            return "友好", "green"
+        if value <= -60:
+            return "非常敌对", "bright_red"
+        if value <= -20:
+            return "敌对", "red"
+        return "中立", "yellow"
+
+    def render_status(self, state: WorldState, relationships: list[Relationship]) -> None:
         player = state.characters[state.player_id]
-        self.console.print(f"\n[bold]角色状态 — {player.name}[/]")
-        for stat, value in player.stats.items():
-            self.console.print(f"  {stat}: {value}")
-        self.console.print()
+        lines: list[str] = []
+
+        stats_line = " | ".join(
+            f"{k} [{('green' if k == 'hp' else 'yellow')}]{v}[/]"
+            for k, v in player.stats.items()
+        )
+        lines.append(f"  属性: {stats_line}")
+
+        lines.append("")
+        lines.append("  [bold]人际关系:[/]")
+        if relationships:
+            for rel in relationships:
+                npc = state.characters.get(rel.tgt)
+                name = npc.name if npc else rel.tgt
+                label, color = self._relationship_label(rel.value)
+                sign = f"+{rel.value}" if rel.value >= 0 else str(rel.value)
+                lines.append(f"    ★ 你 ──[[{color}]{sign} {label}[/]]──▶ {name}")
+        else:
+            lines.append("    [dim]（尚无人际关系记录）[/]")
+
+        lines.append("")
+        lines.append("  [bold]任务进度:[/]")
+        if state.quests:
+            for quest_id, quest_data in state.quests.items():
+                status = quest_data.get("status", "unknown")
+                if status == "completed":
+                    style = "[green]completed[/]"
+                elif status == "active":
+                    style = "[cyan]active[/]"
+                else:
+                    style = f"[yellow]{status}[/]"
+                lines.append(f"    ● {quest_id} ········ {style}")
+        else:
+            lines.append("    [dim]（暂无任务记录）[/]")
+
+        body = "\n".join(lines)
+        self.console.print(
+            Panel(
+                f"[bold]{player.name}[/]\n\n{body}",
+                title="📊 角色状态",
+                border_style="bright_blue",
+                padding=(1, 2),
+            )
+        )
 
     def render_welcome(self, state: WorldState) -> None:
         self.console.print(
