@@ -584,6 +584,33 @@ class TestContextualCompleter:
         assert completions == []
 
 
+class TestActionHints:
+    def test_render_action_hints_outputs_numbered_hints(self):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console)
+        renderer.render_action_hints(["和旅行者交谈", "查看旧告示", "前往north"])
+        output = console.file.getvalue()
+        assert "1" in output
+        assert "2" in output
+        assert "3" in output
+        assert "旅行者" in output
+
+    def test_render_action_hints_empty_list(self):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console)
+        renderer.render_action_hints([])
+        output = console.file.getvalue()
+        assert output.strip() == ""
+
+    def test_render_action_hints_single_hint(self):
+        console = Console(file=StringIO(), force_terminal=True, width=80)
+        renderer = Renderer(console=console)
+        renderer.render_action_hints(["环顾四周"])
+        output = console.file.getvalue()
+        assert "1" in output
+        assert "环顾四周" in output
+
+
 class TestEntityHighlighting:
     def test_highlight_npc_names(self, sample_world_state):
         console = Console(file=StringIO(), force_terminal=True, width=80)

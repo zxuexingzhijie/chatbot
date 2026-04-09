@@ -445,6 +445,12 @@ class Renderer:
             )
         )
 
+    def render_action_hints(self, hints: list[str]) -> None:
+        if not hints:
+            return
+        parts = [f"[dim][{i + 1}][/] [cyan]{h}[/]" for i, h in enumerate(hints)]
+        self.console.print("  ".join(parts))
+
     async def get_dialogue_input(self) -> str:
         try:
             return (await self._session.prompt_async(HTML("<ansicyan><b>对话▸ </b></ansicyan>"))).strip()

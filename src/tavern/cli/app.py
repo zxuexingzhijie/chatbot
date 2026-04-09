@@ -108,6 +108,7 @@ class GameApp:
         self._pending_story_hints: list[str] = []
         self._ending_triggered: tuple[str, str] | None = None
         self._game_over = False
+        self._last_hints: list[str] = []
 
         debug_config = config.get("debug", {})
         self._show_intent = debug_config.get("show_intent_json", False)
@@ -156,6 +157,50 @@ class GameApp:
     def state(self) -> WorldState:
         return self._state_manager.current
 
+    @staticmethod
+    def _generate_action_hints_from_state(state: WorldState) -> list[str]:
+        player = state.characters.get(state.player_id)
+        if player is None:
+            return ["环顾四周"]
+
+        location = state.locations.get(player.location_id)
+        if location is None:
+            return ["环顾四周"]
+
+        hints: list[str] = []
+        hint_types_used: set[str] = set()
+
+        for npc_id in location.npcs:
+            if len(hints) >= 3:
+                break
+            npc = state.characters.get(npc_id)
+            if npc and "talk" not in hint_types_used:
+                hints.append(f"和{npc.name}交谈")
+                hint_types_used.add("talk")
+
+        for item_id in location.items:
+            if len(hints) >= 3:
+                break
+            item = state.items.get(item_id)
+            if item and "inspect" not in hint_types_used:
+                hints.append(f"查看{item.name}")
+                hint_types_used.add("inspect")
+
+        for direction in location.exits:
+            if len(hints) >= 3:
+                break
+            if "move" not in hint_types_used:
+                hints.append(f"前往{direction}")
+                hint_types_used.add("move")
+
+        if not hints:
+            hints.append("环顾四周")
+
+        return hints[:3]
+
+    def _generate_action_hints(self) -> list[str]:
+        return self._generate_action_hints_from_state(self.state)
+
     async def run(self) -> None:
         self._renderer.render_welcome(self.state, self._scenario_meta.name)
         self._renderer.render_status_bar(self.state)
@@ -168,6 +213,15 @@ class GameApp:
 
             if not user_input:
                 continue
+
+            if (
+                user_input in ("1", "2", "3")
+                and self._last_hints
+                and not (self._dialogue_manager.is_active and self._dialogue_ctx is not None)
+            ):
+                idx = int(user_input) - 1
+                if 0 <= idx < len(self._last_hints):
+                    user_input = self._last_hints[idx]
 
             command = user_input.lower().strip()
 
@@ -375,6 +429,8 @@ class GameApp:
         else:
             self._renderer.render_result(result)
         self._pending_story_hints.clear()
+        self._last_hints = self._generate_action_hints()
+        self._renderer.render_action_hints(self._last_hints)
         self._renderer.render_status_bar(self.state)
 
     async def _process_dialogue_input(
