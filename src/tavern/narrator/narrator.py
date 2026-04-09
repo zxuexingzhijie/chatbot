@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, AsyncGenerator
 
 from tavern.narrator.prompts import NarrativeContext, build_ending_prompt, build_narrative_prompt
@@ -9,6 +10,8 @@ from tavern.world.state import WorldState
 if TYPE_CHECKING:
     from tavern.llm.service import LLMService
     from tavern.world.memory import MemoryContext
+
+logger = logging.getLogger(__name__)
 
 
 class Narrator:
@@ -30,6 +33,7 @@ class Narrator:
             async for chunk in self._llm.stream_narrative(system_prompt, action_message):
                 yield chunk
         except Exception:
+            logger.exception("Narrative stream failed, falling back to plain text")
             yield result.message
 
     def _build_context(self, result: ActionResult, state: WorldState) -> NarrativeContext:
@@ -68,4 +72,5 @@ class Narrator:
             async for chunk in self._llm.stream_narrative(system_prompt, user_content):
                 yield chunk
         except Exception:
+            logger.exception("Ending narrative stream failed, falling back to plain text")
             yield f"[结局: {ending_id}]"

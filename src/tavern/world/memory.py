@@ -123,7 +123,11 @@ class RelationshipGraph:
                 label = "敌对"
             else:
                 label = "中立"
-            lines.append(f"{char_id}对{r.tgt}的信任: {r.value}（{label}）")
+            other = r.tgt if r.src == char_id else r.src
+            if r.src == char_id:
+                lines.append(f"{char_id}对{other}的信任: {r.value}（{label}）")
+            else:
+                lines.append(f"{other}对{char_id}的信任: {r.value}（{label}）")
         return "\n".join(lines)
 
     def to_snapshot(self) -> dict:

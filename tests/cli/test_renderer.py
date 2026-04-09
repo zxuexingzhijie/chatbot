@@ -108,6 +108,14 @@ class TestRenderer:
         output = console.file.getvalue()
         assert "旅行者" in output
 
+    def test_render_status_incoming_edge_shows_npc_name(self, renderer, sample_world_state, console):
+        from tavern.world.memory import Relationship
+        rels = [Relationship(src="traveler", tgt="player", value=30)]
+        renderer.render_status(sample_world_state, rels)
+        output = console.file.getvalue()
+        assert "旅行者" in output
+        assert "玩家" not in output or "旅行者" in output
+
     def test_render_status_empty_relationships(self, renderer, sample_world_state, console):
         renderer.render_status(sample_world_state, [])
         output = console.file.getvalue()

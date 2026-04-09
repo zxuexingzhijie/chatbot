@@ -96,8 +96,9 @@ class Renderer:
         lines.append("  [bold]人际关系:[/]")
         if relationships:
             for rel in relationships:
-                npc = state.characters.get(rel.tgt)
-                name = npc.name if npc else rel.tgt
+                other_id = rel.tgt if rel.src == state.player_id else rel.src
+                npc = state.characters.get(other_id)
+                name = npc.name if npc else other_id
                 label, color = self._relationship_label(rel.value)
                 sign = f"+{rel.value}" if rel.value >= 0 else str(rel.value)
                 lines.append(f"    ★ 你 ──[[{color}]{sign} {label}[/]]──▶ {name}")
