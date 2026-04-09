@@ -3,7 +3,10 @@ from __future__ import annotations
 import json
 from typing import AsyncIterator, TypeVar
 
-import httpx
+try:
+    import httpx
+except ImportError:
+    httpx = None
 from pydantic import BaseModel
 from tenacity import (
     retry,
@@ -40,6 +43,10 @@ def _append_json_instruction(messages: list[dict]) -> list[dict]:
 
 class OllamaAdapter:
     def __init__(self, config: LLMConfig) -> None:
+        if httpx is None:
+            raise ImportError(
+                "httpx 包未安装。请运行: pip install tavern[ollama]"
+            )
         self._config = config
         base_url = (config.base_url or "http://localhost:11434").rstrip("/")
         self._client = httpx.AsyncClient(

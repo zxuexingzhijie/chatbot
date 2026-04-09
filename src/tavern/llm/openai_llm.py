@@ -3,7 +3,10 @@ from __future__ import annotations
 import os
 from typing import AsyncIterator, TypeVar
 
-from openai import AsyncOpenAI
+try:
+    from openai import AsyncOpenAI
+except ImportError:
+    AsyncOpenAI = None
 from pydantic import BaseModel
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -14,6 +17,10 @@ T = TypeVar("T", bound=BaseModel)
 
 class OpenAIAdapter:
     def __init__(self, config: LLMConfig) -> None:
+        if AsyncOpenAI is None:
+            raise ImportError(
+                "openai 包未安装。请运行: pip install tavern[openai]"
+            )
         self._config = config
         api_key = config.api_key or os.environ.get("OPENAI_API_KEY")
         self._client = AsyncOpenAI(

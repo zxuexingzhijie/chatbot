@@ -14,9 +14,6 @@ from tavern.narrator.narrator import Narrator
 from tavern.engine.actions import ActionType
 from tavern.engine.rules import RulesEngine
 from tavern.llm.adapter import LLMConfig, LLMRegistry
-from tavern.llm.openai_llm import OpenAIAdapter  # noqa: F401 — triggers registration
-from tavern.llm.anthropic_llm import AnthropicAdapter  # noqa: F401 — triggers registration
-from tavern.llm.ollama_llm import OllamaAdapter  # noqa: F401 — triggers registration
 from tavern.llm.service import LLMService
 from tavern.parser.intent import IntentParser
 from tavern.world.loader import load_scenario

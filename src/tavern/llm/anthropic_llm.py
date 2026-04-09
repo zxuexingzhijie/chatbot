@@ -3,7 +3,10 @@ from __future__ import annotations
 import os
 from typing import AsyncIterator, TypeVar
 
-import anthropic
+try:
+    import anthropic
+except ImportError:
+    anthropic = None
 from pydantic import BaseModel
 from tenacity import (
     retry,
@@ -26,6 +29,10 @@ def _split_system(messages: list[dict]) -> tuple[str, list[dict]]:
 
 class AnthropicAdapter:
     def __init__(self, config: LLMConfig) -> None:
+        if anthropic is None:
+            raise ImportError(
+                "anthropic 包未安装。请运行: pip install tavern[anthropic]"
+            )
         self._config = config
         api_key = config.api_key or os.environ.get("ANTHROPIC_API_KEY")
         self._client = anthropic.AsyncAnthropic(

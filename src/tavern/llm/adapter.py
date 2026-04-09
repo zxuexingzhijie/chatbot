@@ -34,22 +34,41 @@ class LLMAdapter(Protocol):
 
 
 class LLMRegistry:
-    _providers: dict[str, type] = {}
+    _providers: dict[str, type | tuple[str, str]] = {}
 
     @classmethod
     def register(cls, name: str, adapter_cls: type) -> None:
         cls._providers[name] = adapter_cls
 
     @classmethod
+    def register_lazy(cls, name: str, module_path: str, class_name: str) -> None:
+        cls._providers[name] = (module_path, class_name)
+
+    @classmethod
     def create(cls, config: LLMConfig) -> LLMAdapter:
-        if config.provider not in cls._providers:
+        entry = cls._providers.get(config.provider)
+        if entry is None:
+            available = ", ".join(cls._providers.keys())
             raise ValueError(
                 f"Unknown LLM provider: '{config.provider}'."
-                f" Available: {list(cls._providers.keys())}"
+                f" Available: {available}"
             )
-        return cls._providers[config.provider](config=config)
+        if isinstance(entry, tuple):
+            module_path, class_name = entry
+            import importlib
+            module = importlib.import_module(module_path)
+            adapter_cls = getattr(module, class_name)
+            cls._providers[config.provider] = adapter_cls
+        else:
+            adapter_cls = entry
+        return adapter_cls(config=config)
 
     @classmethod
     def reset(cls) -> None:
         """Clear all registered providers. Intended for test isolation."""
         cls._providers.clear()
+
+
+LLMRegistry.register_lazy("openai", "tavern.llm.openai_llm", "OpenAIAdapter")
+LLMRegistry.register_lazy("anthropic", "tavern.llm.anthropic_llm", "AnthropicAdapter")
+LLMRegistry.register_lazy("ollama", "tavern.llm.ollama_llm", "OllamaAdapter")
