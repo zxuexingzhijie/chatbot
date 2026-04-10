@@ -17,6 +17,7 @@ class CommandContext:
     story_engine: Any
     dialogue_manager: Any
     logger: Any
+    action_registry: Any = None
 
 
 @dataclass(frozen=True)

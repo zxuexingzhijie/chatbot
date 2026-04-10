@@ -11,10 +11,14 @@ async def cmd_look(args: str, ctx: CommandContext) -> None:
         request = ActionRequest(action=ActionType.LOOK, target=args)
     else:
         request = ActionRequest(action=ActionType.LOOK)
-    from tavern.engine.rules import RulesEngine
-
-    rules = RulesEngine()
-    result, _ = rules.validate(request, ctx.state_manager.state)
+    if ctx.action_registry is not None:
+        result, _ = ctx.action_registry.validate_and_execute(
+            request, ctx.state_manager.state,
+        )
+    else:
+        from tavern.engine.rules import RulesEngine
+        rules = RulesEngine()
+        result, _ = rules.validate(request, ctx.state_manager.state)
     ctx.renderer.render_result(result)
 
 
@@ -42,10 +46,14 @@ async def cmd_undo(args: str, ctx: CommandContext) -> None:
         return
     ctx.renderer.console.print("\n[dim]已回退上一步。[/]\n")
     request = ActionRequest(action=ActionType.LOOK)
-    from tavern.engine.rules import RulesEngine
-
-    rules = RulesEngine()
-    look_result, _ = rules.validate(request, ctx.state_manager.state)
+    if ctx.action_registry is not None:
+        look_result, _ = ctx.action_registry.validate_and_execute(
+            request, ctx.state_manager.state,
+        )
+    else:
+        from tavern.engine.rules import RulesEngine
+        rules = RulesEngine()
+        look_result, _ = rules.validate(request, ctx.state_manager.state)
     ctx.renderer.render_result(look_result)
 
 
