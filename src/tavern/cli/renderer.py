@@ -10,6 +10,9 @@ from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit import Application
+from prompt_toolkit.layout import Layout, Window
+from prompt_toolkit.layout.controls import FormattedTextControl as PTKFormattedTextControl
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -409,69 +412,79 @@ class Renderer:
         except (EOFError, KeyboardInterrupt):
             return "/quit"
 
-    async def get_input_with_hints(self, hints: list[str]) -> str:
+    async def get_input_with_card_hints(self, hints: list[str]) -> str:
         if not hints:
             return await self.get_input()
 
-        max_hint_len = 20
         selected_index = [0]
+        input_text = [""]
+        total = len(hints) + 1
 
-        def _truncate(text: str) -> str:
-            if len(text) <= max_hint_len:
-                return text
-            return text[:max_hint_len - 1] + "…"
-
-        def _build_toolbar():
-            parts = []
-            for i, h in enumerate(hints):
-                label = _truncate(h)
-                if i == selected_index[0]:
-                    parts.append(
-                        f"<style bg='ansiblue' fg='ansiwhite'><b> {i + 1}. {label} </b></style>"
-                    )
-                else:
-                    parts.append(
-                        f" <style fg='ansicyan'>{i + 1}.</style> <style fg='ansiwhite'>{label}</style> "
-                    )
-            nav = "<style fg='ansigray'>←→选择 ↵确认</style>"
-            return HTML(" ".join(parts) + "  " + nav)
+        def _get_display():
+            return _build_card_display(hints, selected_index[0], input_text[0])
 
         bindings = KeyBindings()
 
-        @bindings.add("left")
-        def _left(event):
-            selected_index[0] = (selected_index[0] - 1) % len(hints)
-
-        @bindings.add("right")
-        def _right(event):
-            selected_index[0] = (selected_index[0] + 1) % len(hints)
-
         @bindings.add("up")
         def _up(event):
-            selected_index[0] = (selected_index[0] - 1) % len(hints)
+            selected_index[0] = (selected_index[0] - 1) % total
 
         @bindings.add("down")
         def _down(event):
-            selected_index[0] = (selected_index[0] + 1) % len(hints)
+            selected_index[0] = (selected_index[0] + 1) % total
 
         @bindings.add("enter")
         def _enter(event):
-            buf = event.app.current_buffer
-            if not buf.text.strip():
-                buf.text = hints[selected_index[0]]
-            buf.validate_and_handle()
+            idx = selected_index[0]
+            if idx < len(hints):
+                event.app.exit(result=hints[idx])
+            elif input_text[0].strip():
+                event.app.exit(result=input_text[0].strip())
 
-        hint_session = PromptSession(
-            vi_mode=self._session.editing_mode.name == "VI",
-            completer=self._session.completer,
+        @bindings.add("c-c")
+        def _ctrl_c(event):
+            event.app.exit(result="/quit")
+
+        @bindings.add("c-d")
+        def _ctrl_d(event):
+            event.app.exit(result="/quit")
+
+        @bindings.add("backspace")
+        def _backspace(event):
+            if selected_index[0] == len(hints) and input_text[0]:
+                input_text[0] = input_text[0][:-1]
+
+        @bindings.add("<any>")
+        def _any_key(event):
+            char = event.data
+            if not char.isprintable() or len(char) != 1:
+                return
+            is_input_row = selected_index[0] == len(hints)
+            is_shortcut = (
+                not input_text[0]
+                and char in "123"
+                and int(char) <= len(hints)
+            )
+            if is_shortcut and not is_input_row:
+                event.app.exit(result=hints[int(char) - 1])
+                return
+            if not is_input_row:
+                selected_index[0] = len(hints)
+            input_text[0] += char
+
+        control = PTKFormattedTextControl(_get_display)
+        layout = Layout(Window(content=control, dont_extend_height=True))
+        style = _card_style()
+
+        app: Application[str] = Application(
+            layout=layout,
             key_bindings=bindings,
-            bottom_toolbar=_build_toolbar,
+            style=style,
+            full_screen=False,
         )
 
-        try:
-            return (await hint_session.prompt_async(HTML("<ansigreen><b>▸ </b></ansigreen>"))).strip()
-        except (EOFError, KeyboardInterrupt):
-            return "/quit"
+        result = await app.run_async()
+        return result or "/quit"
 
     def render_dialogue_start(
         self, ctx: DialogueContext, response: DialogueResponse
@@ -576,12 +589,6 @@ class Renderer:
                 padding=(1, 2),
             )
         )
-
-    def render_action_hints(self, hints: list[str]) -> None:
-        if not hints:
-            return
-        parts = [f"[dim][{i + 1}][/] [cyan]{h}[/]" for i, h in enumerate(hints)]
-        self.console.print("  ".join(parts))
 
     async def get_dialogue_input(self) -> str:
         try:

@@ -211,21 +211,6 @@ class TestDialogueRenderer:
         renderer = Renderer(console=console)
         assert callable(renderer.get_dialogue_input)
 
-    def test_get_input_with_hints_callable(self):
-        from rich.console import Console
-        console = Console(file=StringIO(), width=80)
-        renderer = Renderer(console=console)
-        assert callable(renderer.get_input_with_hints)
-
-    @pytest.mark.asyncio
-    async def test_get_input_with_hints_empty_falls_back(self):
-        console = Console(file=StringIO(), width=80)
-        renderer = Renderer(console=console)
-        with patch.object(renderer, "get_input", new_callable=AsyncMock, return_value="test") as mock_get:
-            result = await renderer.get_input_with_hints([])
-            mock_get.assert_called_once()
-            assert result == "test"
-
 
 class TestInputMethods:
     def test_get_input_with_card_hints_callable(self):
