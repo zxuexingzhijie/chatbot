@@ -218,7 +218,27 @@ EFFECT_EXECUTORS: dict[EffectKind, EffectExecutor] = {
 - `_process_dialogue_input()` 提取为 `DialogueModeHandler`
 - `_handle_free_input()` 提取为 `ExploringModeHandler`
 - `_handle_system_command()` 的命令分发交给 §6 `CommandRegistry`，handler 通过 `context.command_registry` 查询
-- `GameApp` 瘦身为 `GameLoop`，只做模式分发和副作用执行
+- `GameApp` 拆分为 `Bootstrapper` + `GameLoop`：
+  - **`Bootstrapper`**：负责当前 `GameApp.__init__()` 中 ~220 行的初始化逻辑（加载配置、创建 LLM、加载场景、构建 ModeHandler 实例、组装 ModeContext），返回一个就绪的 `GameLoop` 实例
+  - **`GameLoop`**：只做模式分发和副作用执行，不负责初始化
+
+#### GameLoop.reset() — 支持 /load 命令
+
+当前 `/load` 命令（app.py:390-404）重建 `StateManager` 和 `MemorySystem`。新架构下 `GameLoop` 和 `ModeContext` 都持有旧引用，必须有 reset 机制：
+
+```python
+class GameLoop:
+    def reset(self, new_state: WorldState) -> None:
+        """/load 时重置所有持有旧 state 引用的组件"""
+        self._context.state_manager.replace(new_state)
+        self._context.memory.rebuild(new_state)
+        self._context.dialogue_manager.reset()
+        self._current_mode = GameMode.EXPLORING
+        # 场景缓存全部失效
+        self._scene_cache.invalidate()
+```
+
+`ReactiveStateManager.replace(new_state)` 清空 history/future，设置新 state，触发 on_change。这让 /load 不需要重建整个对象图。
 
 ### 测试策略
 
@@ -452,6 +472,8 @@ scenarios/tavern/
 ```
 
 **变体文件命名规则**：`{id}.{variant_name}.md`。每个变体是独立文件，Markdown 内容完全自由，不受分隔符限制。
+
+**Content ID 约束**：ID 不得包含 `.` 字符（只允许 `[a-z0-9_]`）。这样解析器可以安全地按第一个 `.` 分割文件名：`tavern_hall.night.md` → ID=`tavern_hall`，variant=`night`。加载时对 ID 做校验，不合规则 raise `ContentError`。
 
 默认内容文件示例（`rooms/tavern_hall.md`）：
 
@@ -702,9 +724,9 @@ move_action = build_action(
     action_type=ActionType.MOVE,
     description="移动",
     valid_targets=lambda s: [
-        exit.target_location_id
-        for exit in s.current_location.exits
-        if not exit.is_locked
+        exit.target                          # models.Exit.target (非 target_location_id)
+        for exit in s.current_location.exits.values()
+        if not exit.locked                   # models.Exit.locked (非 is_locked)
     ],
     is_available=lambda s: len(s.current_location.exits) > 0,
     handler=_handle_move,
@@ -882,13 +904,14 @@ class ReactiveStateManager:
     def version(self) -> int:
         return self._version
 
-    def commit(self, diff: StateDiff, action: str = "") -> WorldState:
+    def commit(self, diff: StateDiff, action: ActionResult | None = None) -> WorldState:
         """同步 commit。on_change 通过 fire-and-forget 异步执行，
-        避免整个调用链被迫改成 async。trade-off：副作用执行顺序不保证。"""
+        避免整个调用链被迫改成 async。trade-off：副作用执行顺序不保证。
+        action 参数保持 ActionResult 类型，与现有 StateManager.commit() 签名一致。"""
         old = self._state
         self._history.append((old, self._version))
         self._future.clear()
-        self._state = old.apply(diff)
+        self._state = old.apply(diff, action=action)
         self._version += 1
         if self._on_change:
             asyncio.create_task(self._on_change(old, self._state))
@@ -913,6 +936,18 @@ class ReactiveStateManager:
         for listener in list(self._listeners):
             listener()
         return self._state
+
+    def replace(self, new_state: WorldState) -> None:
+        """/load 时整体替换状态，清空 history/future，触发 on_change"""
+        old = self._state
+        self._state = new_state
+        self._history.clear()
+        self._future.clear()
+        self._version += 1
+        if self._on_change:
+            asyncio.create_task(self._on_change(old, self._state))
+        for listener in list(self._listeners):
+            listener()
 ```
 
 注册副作用：
@@ -944,8 +979,11 @@ def setup_state_reactions(
 
 ### 与现有代码的集成
 
-- `StateManager` 重命名为 `ReactiveStateManager`，新增 `subscribe()` 和 `on_change` 参数
+- `StateManager` 重命名为 `ReactiveStateManager`，新增 `subscribe()`、`on_change` 和 `replace()` 方法
 - **`commit()` 和 `undo()` 保持同步**。`on_change` 通过 `asyncio.create_task()` fire-and-forget 执行，避免对 `rules.py` 等同步调用方的破坏性改动。trade-off：副作用执行顺序不保证，但副作用应当是独立的
+- **`commit()` 第二参数保持 `ActionResult | None`**，与现有 `StateManager.commit(diff, action: ActionResult)` 签名一致
+- **`undo()` 返回 `WorldState | None`**（而非 raise IndexError）。现有 app.py:331 的 `try/except IndexError` 调用侧需改为 `if result is None` 判断
+- `replace(new_state)` 用于 `/load` 命令，整体替换状态并清空 history/future（见 §1 `GameLoop.reset()`）
 - `WorldState` 新增 `version: int` 字段（每次 `apply(diff)` 时 +1），供 §10 场景缓存使用
 - `GameApp` 中散落的手动副作用调用逐步迁移到 `on_change` 回调中
 - undo/redo 也会触发 `on_change`，确保副作用一致
@@ -1189,7 +1227,7 @@ def should_trigger_random_event(location_id: str, turn: int) -> bool:
 
 ### 与现有代码的集成
 
-- 在 `Narrator.build_narrative_prompt()` 中注入 `generate_ambience()` 的结果作为额外上下文
+- **氛围注入路径**：`generate_ambience()` 的结果不直接传给 `build_narrative_prompt()`（其签名不变）。而是在 §10 `CachedPromptBuilder.build_scene_context()` 中调用 `generate_ambience()`，拼接到 `SceneContext.location_description` 末尾（如追加"空气中弥漫着烤面包的香气，远处传来马蹄声"）。`NarrativeContext.location_desc` 从 `SceneContext.location_description` 取值，自然包含氛围细节
 - NPC 的 Markdown 内容文件中可以引用 `{appearance.scar}` 等模板变量
 - `StoryEngine` 的随机事件触发可以用确定性种子替代 `random.random()`，使重放存档时事件一致
 
@@ -1245,9 +1283,9 @@ class GameLogger:
 
     async def _flush_loop(self):
         await asyncio.sleep(self._flush_interval)
-        await self.flush()
+        self.flush()
 
-    async def flush(self):
+    def flush(self):
         if not self._buffer:
             return
         # 文件大小检查：超过上限时轮转
@@ -1257,8 +1295,8 @@ class GameLogger:
         entries = self._buffer.copy()
         self._buffer.clear()
         lines = [json.dumps(asdict(e), ensure_ascii=False) + "\n" for e in entries]
-        async with aiofiles.open(self._path, "a") as f:
-            await f.writelines(lines)
+        with open(self._path, "a", encoding="utf-8") as f:
+            f.writelines(lines)  # 同步写入，JSONL append 量小，不需要 aiofiles
 
     def read_recent(self, n: int = 50) -> list[GameLogEntry]:
         """读取最近 N 条记录。
@@ -1289,9 +1327,9 @@ class GameLogger:
                     result.insert(0, GameLogEntry(**json.loads(line)))
         return result[-n:]
 
-    async def close(self):
+    def close(self):
         """关闭前刷盘"""
-        await self.flush()
+        self.flush()
 ```
 
 日志内容示例：
@@ -1320,7 +1358,7 @@ async def cmd_journal(args: str, ctx: CommandContext):
 ### 与现有代码的集成
 
 - `GameLogger` 在 `GameApp` 启动时创建
-- **`GameLogger.close()` 必须在 `GameApp.run()` 的 `finally` 块中调用**，否则崩溃时 buffer 中的数据丢失
+- **`GameLogger.close()` 必须在 `GameApp.run()` 的 `finally` 块中调用**，否则崩溃时 buffer 中的数据丢失。`close()` 是同步方法（无需 await），可安全在 finally 中调用
 - 在 `_handle_free_input()` 入口记录 `player_input`
 - 在 `Narrator.stream_narrative()` 完成后记录 `system_output`
 - 在 `StateManager.commit()` 后记录 `state_change`
@@ -1396,9 +1434,10 @@ class ClassifiedMemorySystem:
     def add(self, entry: MemoryEntry) -> None:
         self._memories[entry.memory_type].append(entry)
 
-    def build_context(self, state: WorldState) -> str:
-        """按预算裁剪，组装 prompt 上下文"""
-        sections = []
+    def build_context(self, state: WorldState) -> MemoryContext:
+        """按预算裁剪，组装 prompt 上下文。
+        返回 MemoryContext dataclass，保持与现有 build_narrative_prompt 接口兼容。"""
+        sections: dict[str, str] = {}
         for mem_type in MemoryType:
             entries = self._memories[mem_type]
             # 按重要性 * 新鲜度排序
@@ -1408,10 +1447,18 @@ class ClassifiedMemorySystem:
                 reverse=True,
             )
             budget = getattr(self._budget, mem_type.value)
-            section = self._truncate_to_budget(scored, budget)  # 按 token 数截断，保留高分条目
-            if section:
-                sections.append(f"【{mem_type.value.upper()}】\n{section}")
-        return "\n\n".join(sections)
+            sections[mem_type] = self._truncate_to_budget(scored, budget)
+
+        # 映射到 MemoryContext 三字段：
+        # recent_events ← QUEST + DISCOVERY（事件性信息）
+        # relationship_summary ← RELATIONSHIP
+        # active_skills_text ← LORE（世界知识）
+        recent_parts = [s for k in (MemoryType.QUEST, MemoryType.DISCOVERY) if (s := sections.get(k))]
+        return MemoryContext(
+            recent_events="\n".join(recent_parts),
+            relationship_summary=sections.get(MemoryType.RELATIONSHIP, ""),
+            active_skills_text=sections.get(MemoryType.LORE, ""),
+        )
 
     def _recency_score(self, entry: MemoryEntry, current_turn: int) -> float:
         age = current_turn - entry.last_relevant_turn
@@ -1509,7 +1556,7 @@ MemoryExtractor 在 `on_change` 中被调用：新事件产生时遍历 diff 中
 
 ### 与现有代码的集成
 
-- `MemorySystem.build_context()` 替换为 `ClassifiedMemorySystem.build_context()`
+- `MemorySystem.build_context()` 替换为 `ClassifiedMemorySystem.build_context()`，返回类型保持 `MemoryContext` dataclass（三字段：`recent_events`、`relationship_summary`、`active_skills_text`），与 `build_narrative_prompt` 接口兼容
 - `EventTimeline` 仍然保留（完整事件流），`MemoryExtractor` 从新事件中提取分类记忆
 - `RelationshipGraph` 的变更事件自动写入 RELATIONSHIP 类型
 - `StoryEngine` 触发节点时自动写入 QUEST 类型
