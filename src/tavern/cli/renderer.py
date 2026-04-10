@@ -465,7 +465,7 @@ class Renderer:
                 and char in "123"
                 and int(char) <= len(hints)
             )
-            if is_shortcut and not is_input_row:
+            if is_shortcut:
                 event.app.exit(result=hints[int(char) - 1])
                 return
             if not is_input_row:
