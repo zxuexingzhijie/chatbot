@@ -125,26 +125,53 @@ class GameLoop:
 副作用是命令式操作的声明式描述，使转换函数保持纯净：
 
 ```python
+class EffectKind(Enum):
+    START_DIALOGUE = "start_dialogue"
+    APPLY_DIFF = "apply_diff"
+    EMIT_EVENT = "emit_event"
+    RENDER = "render"
+    SAVE = "save"
+    END_DIALOGUE = "end_dialogue"
+    APPLY_TRUST = "apply_trust"
+    INIT_COMBAT = "init_combat"
+    APPLY_REWARDS = "apply_rewards"
+    FLEE_PENALTY = "flee_penalty"
+
 @dataclass(frozen=True)
 class SideEffect:
-    kind: str  # "start_dialogue", "apply_diff", "render", "save", ...
+    kind: EffectKind
     payload: dict
 
 # 示例
-SideEffect(kind="start_dialogue", payload={"npc_id": "bartender_grim"})
-SideEffect(kind="apply_diff", payload={"diff": state_diff})
-SideEffect(kind="emit_event", payload={"event": Event(...)})
+SideEffect(kind=EffectKind.START_DIALOGUE, payload={"npc_id": "bartender_grim"})
+SideEffect(kind=EffectKind.APPLY_DIFF, payload={"diff": state_diff})
+SideEffect(kind=EffectKind.EMIT_EVENT, payload={"event": Event(...)})
 ```
 
-副作用执行器是一个注册表：
+副作用执行器是一个注册表，值为 async 函数引用（非 lambda，支持错误处理和复杂逻辑）：
 
 ```python
-EFFECT_EXECUTORS: dict[str, Callable] = {
-    "start_dialogue": lambda p, ctx: ctx.dialogue_manager.start(p["npc_id"]),
-    "apply_diff": lambda p, ctx: ctx.state_manager.commit(p["diff"]),
-    "emit_event": lambda p, ctx: ctx.memory.timeline.append(p["event"]),
-    "render": lambda p, ctx: ctx.renderer.render(p["content"]),
-    "save": lambda p, ctx: ctx.persistence.auto_save(ctx.state),
+EffectExecutor = Callable[[dict, GameContext], Awaitable[None]]
+
+async def _exec_start_dialogue(payload: dict, ctx: GameContext) -> None:
+    npc_id = payload["npc_id"]
+    npc = ctx.state_manager.state.characters.get(npc_id)
+    if npc is None:
+        raise GameError(f"NPC not found: {npc_id}")
+    await ctx.dialogue_manager.start(npc_id)
+
+async def _exec_apply_diff(payload: dict, ctx: GameContext) -> None:
+    ctx.state_manager.commit(payload["diff"])
+
+async def _exec_save(payload: dict, ctx: GameContext) -> None:
+    await ctx.persistence.auto_save(ctx.state_manager.state)
+
+EFFECT_EXECUTORS: dict[EffectKind, EffectExecutor] = {
+    EffectKind.START_DIALOGUE: _exec_start_dialogue,
+    EffectKind.APPLY_DIFF: _exec_apply_diff,
+    EffectKind.EMIT_EVENT: lambda p, ctx: ctx.memory.timeline.append(p["event"]),
+    EffectKind.RENDER: lambda p, ctx: ctx.renderer.render(p["content"]),
+    EffectKind.SAVE: _exec_save,
 }
 ```
 
@@ -162,7 +189,7 @@ def test_dialogue_to_exploring_on_farewell():
     handler = DialogueModeHandler(...)
     result = await handler.handle_input("再见", state, context)
     assert result.next_mode == GameMode.EXPLORING
-    assert any(e.kind == "end_dialogue" for e in result.side_effects)
+    assert any(e.kind == EffectKind.END_DIALOGUE for e in result.side_effects)
 ```
 
 ---
@@ -181,7 +208,49 @@ Claude Code `keybindings/` 模块。按键绑定按 context 分组（`Global`, `
 
 没有快捷键系统。玩家在对话模式下想快速选择语气需要打字，探索时移动需要完整输入"向北走"。
 
+### 核心约束：单键绑定与文本输入冲突
+
+这是 CLI 文本游戏快捷键系统的根本矛盾：玩家在对话模式下要输入中文，按 `n` 是"向北走"还是"你好"的一部分？必须引入 **输入模式（InputMode）** 概念来解决。
+
 ### 目标设计
+
+#### 输入模式
+
+```python
+class InputMode(Enum):
+    HOTKEY = "hotkey"  # 单键直接触发 action（不进入文本编辑）
+    TEXT = "text"      # 正常文本输入（键盘输入进 buffer）
+
+# 每个 GameMode 的默认输入模式
+DEFAULT_INPUT_MODE: dict[GameMode, InputMode] = {
+    GameMode.EXPLORING: InputMode.HOTKEY,   # 探索时单键移动
+    GameMode.DIALOGUE: InputMode.TEXT,       # 对话时打字
+    GameMode.COMBAT: InputMode.HOTKEY,       # 战斗时快捷选择
+    GameMode.INVENTORY: InputMode.HOTKEY,    # 背包浏览
+    GameMode.SHOP: InputMode.HOTKEY,         # 商店浏览
+}
+```
+
+模式切换规则：
+- **HOTKEY → TEXT**：按 `/`（进入命令输入）或按 `Enter`（进入自由文本输入）
+- **TEXT → HOTKEY**：按 `Escape`（取消输入）或发送文本后自动回到 HOTKEY
+- HOTKEY 模式下显示底部提示栏：`[n/s/e/w] 移动  [l] 查看  [t] 交谈  [i] 背包  [Enter] 输入文字`
+- TEXT 模式下显示正常的文本输入框（prompt_toolkit input）
+
+快捷键只在 HOTKEY 模式下生效：
+
+```python
+class KeybindingResolver:
+    def resolve(
+        self, key: str, game_mode: GameMode, input_mode: InputMode
+    ) -> str | None:
+        if input_mode == InputMode.TEXT:
+            return None  # TEXT 模式下所有按键进文本 buffer
+        context_bindings = self._by_context.get(game_mode, {})
+        return context_bindings.get(key)
+```
+
+#### 快捷键定义
 
 ```python
 @dataclass(frozen=True)
@@ -233,22 +302,7 @@ DEFAULT_BINDINGS: list[KeybindingBlock] = [
 ]
 ```
 
-快捷键解析器：
-
-```python
-class KeybindingResolver:
-    def __init__(self, bindings: list[KeybindingBlock]):
-        self._by_context: dict[GameMode, dict[str, str]] = {}
-        for block in bindings:
-            self._by_context[block.context] = {
-                kb.key: kb.action for kb in block.bindings
-            }
-
-    def resolve(self, key: str, current_mode: GameMode) -> str | None:
-        """返回 action 名称，或 None 表示无匹配"""
-        context_bindings = self._by_context.get(current_mode, {})
-        return context_bindings.get(key)
-```
+快捷键解析器（见上方 `KeybindingResolver`，已包含 `InputMode` 参数）。
 
 ### Chord 支持（二期）
 
@@ -327,7 +381,9 @@ scenarios/tavern/
 ├── story.yaml             # 故事节点定义（不变）
 ├── content/               # 新增：Markdown 内容目录
 │   ├── rooms/
-│   │   ├── tavern_hall.md
+│   │   ├── tavern_hall.md              # 默认描述
+│   │   ├── tavern_hall.night.md        # 变体：夜晚
+│   │   ├── tavern_hall.after_secret.md # 变体：发现秘密后
 │   │   ├── bar_area.md
 │   │   ├── cellar.md
 │   │   └── ...
@@ -347,17 +403,19 @@ scenarios/tavern/
 │       └── ...
 ```
 
-单个内容文件示例：
+**变体文件命名规则**：`{id}.{variant_name}.md`。每个变体是独立文件，Markdown 内容完全自由，不受分隔符限制。
+
+默认内容文件示例（`rooms/tavern_hall.md`）：
 
 ```markdown
 ---
 id: tavern_hall
 type: room
-conditions:
-  - when: "event_exists:cellar_secret_revealed"
-    use: tavern_hall_after_secret
-  - when: "time:night"
-    use: tavern_hall_night
+variants:
+  - name: after_secret
+    when: "event_exists:cellar_secret_revealed"
+  - name: night
+    when: "time:night"
 tags: [main_area, social]
 atmosphere: warm
 ---
@@ -367,19 +425,19 @@ atmosphere: warm
 和**烤肉**的香气。
 
 大厅里零星坐着几个客人，低声交谈。吧台方向传来杯碟碰撞的声响。
+```
 
----
+变体内容文件（`rooms/tavern_hall.after_secret.md`）——纯内容，无 frontmatter：
 
-## tavern_hall_after_secret
-
+```markdown
 大厅里的气氛微妙地变了。*格林*擦杯子的动作比平时慢了些，
 目光不时扫向地窖方向的走廊。你注意到之前锁着的那扇门现在
 微微开着一条缝。
+```
 
----
+变体文件（`rooms/tavern_hall.night.md`）：
 
-## tavern_hall_night
-
+```markdown
 酒馆已近打烊时分。火焰低了下去，只剩余烬闪烁着暗红色的光。
 大部分客人已经离开，只有角落里**神秘客人**还坐在那里，
 低头看着什么东西。
@@ -418,18 +476,27 @@ voice_style: 简短有力，不说废话，偶尔流露关心
 
 ```python
 @dataclass(frozen=True)
+class VariantDef:
+    name: str       # "after_secret"
+    when: str       # "event_exists:cellar_secret_revealed"
+
+@dataclass(frozen=True)
 class ContentEntry:
     id: str
     type: str              # "room", "npc", "item", "event"
     metadata: dict          # frontmatter 中的其他字段
-    body: str              # 默认正文
-    variants: dict[str, str]  # condition_name -> variant_body
+    body: str              # 默认正文（主文件内容）
+    variants: dict[str, str]  # variant_name -> variant_body（从独立文件加载）
+    variant_defs: tuple[VariantDef, ...]  # frontmatter 中声明的变体条件
 
 class ContentLoader:
     """从 Markdown 文件加载游戏内容"""
 
     def load_directory(self, path: Path) -> dict[str, ContentEntry]:
-        """递归加载目录下所有 .md 文件"""
+        """递归加载目录下所有 .md 文件。
+        主文件（如 tavern_hall.md）提供 frontmatter + 默认正文。
+        变体文件（如 tavern_hall.night.md）按命名规则自动关联。
+        """
         ...
 
     def resolve(
@@ -437,10 +504,11 @@ class ContentLoader:
     ) -> str:
         """根据当前状态选择正确的内容变体"""
         entry = self._entries[entry_id]
-        for condition in entry.metadata.get("conditions", []):
-            if self._evaluate_condition(condition["when"], state):
-                variant_key = condition["use"]
-                return entry.variants.get(variant_key, entry.body)
+        for variant_def in entry.variant_defs:
+            if self._evaluate_condition(variant_def.when, state):
+                variant_body = entry.variants.get(variant_def.name)
+                if variant_body is not None:
+                    return variant_body
         return entry.body
 ```
 
@@ -533,9 +601,7 @@ ACTION_DEFAULTS = ActionDef(
 
 def build_action(**overrides) -> ActionDef:
     """工厂函数：只需声明与默认值不同的部分"""
-    defaults = asdict(ACTION_DEFAULTS)
-    defaults.update(overrides)
-    return ActionDef(**defaults)
+    return dataclasses.replace(ACTION_DEFAULTS, **overrides)
 ```
 
 使用示例：
@@ -634,10 +700,10 @@ await self.story_engine.check_triggers(...)
 在 `StateManager` 上增加订阅机制：
 
 ```python
-from typing import Callable
+from typing import Callable, Awaitable
 
 Listener = Callable[[], None]
-OnChange = Callable[[WorldState, WorldState], None]  # (old, new)
+OnChange = Callable[[WorldState, WorldState], Awaitable[None]]  # async callback
 
 class ReactiveStateManager:
     def __init__(
@@ -656,14 +722,15 @@ class ReactiveStateManager:
     def state(self) -> WorldState:
         return self._state
 
-    def commit(self, diff: StateDiff, action: str = "") -> WorldState:
+    async def commit(self, diff: StateDiff, action: str = "") -> WorldState:
         old = self._state
         self._history.append(old)
         self._future.clear()
         self._state = old.apply(diff)
         if self._on_change:
-            self._on_change(old, self._state)
-        for listener in self._listeners:
+            await self._on_change(old, self._state)
+        # snapshot 迭代，防止回调中 unsubscribe 导致跳过元素
+        for listener in list(self._listeners):
             listener()
         return self._state
 
@@ -672,15 +739,15 @@ class ReactiveStateManager:
         self._listeners.append(listener)
         return lambda: self._listeners.remove(listener)
 
-    def undo(self) -> WorldState | None:
+    async def undo(self) -> WorldState | None:
         if not self._history:
             return None
         self._future.append(self._state)
         old = self._state
         self._state = self._history.pop()
         if self._on_change:
-            self._on_change(old, self._state)
-        for listener in self._listeners:
+            await self._on_change(old, self._state)
+        for listener in list(self._listeners):
             listener()
         return self._state
 ```
@@ -694,10 +761,10 @@ def setup_state_reactions(
     persistence: SaveManager,
     story_engine: StoryEngine,
 ):
-    def on_state_change(old: WorldState, new: WorldState):
+    async def on_state_change(old: WorldState, new: WorldState):
         # 自动保存
         if new.turn % 5 == 0:
-            persistence.auto_save(new)
+            await persistence.auto_save(new)
 
         # 位置变更时自动 look
         if old.player_location != new.player_location:
@@ -715,7 +782,8 @@ def setup_state_reactions(
 ### 与现有代码的集成
 
 - `StateManager` 重命名为 `ReactiveStateManager`，新增 `subscribe()` 和 `on_change` 参数
-- 现有的 `commit()` 和 `undo()` 接口保持不变，只是在内部增加通知
+- `commit()` 和 `undo()` 改为 `async`，因为 `on_change` 回调需要 await
+- `WorldState` 新增 `version: int` 字段（每次 `apply(diff)` 时 +1），供 §10 场景缓存使用
 - `GameApp` 中散落的手动副作用调用逐步迁移到 `on_change` 回调中
 - undo/redo 也会触发 `on_change`，确保副作用一致
 
@@ -754,7 +822,8 @@ class GameCommand:
     description: str = ""
     is_hidden: bool = False
     available_in: tuple[GameMode, ...] = (GameMode.EXPLORING,)
-    execute: Callable  # async (args: str, ctx: CommandContext) -> None
+    is_available: Callable[[WorldState], bool] = lambda _: True  # 动态启用/禁用
+    execute: Callable[[str, CommandContext], Awaitable[None]] = ...  # async (args, ctx)
 
 class CommandRegistry:
     def __init__(self):
@@ -770,16 +839,18 @@ class CommandRegistry:
     def find(self, name: str) -> GameCommand | None:
         return self._lookup.get(name)
 
-    def get_available(self, mode: GameMode) -> list[GameCommand]:
+    def get_available(self, mode: GameMode, state: WorldState) -> list[GameCommand]:
         return [
             c for c in self._commands
-            if mode in c.available_in and not c.is_hidden
+            if mode in c.available_in
+            and not c.is_hidden
+            and c.is_available(state)
         ]
 
-    def get_completions(self, mode: GameMode) -> list[str]:
+    def get_completions(self, mode: GameMode, state: WorldState) -> list[str]:
         """供 ContextualCompleter 使用"""
         return [
-            c.name for c in self.get_available(mode)
+            c.name for c in self.get_available(mode, state)
         ]
 ```
 
@@ -809,6 +880,7 @@ registry.register(GameCommand(
     aliases=("/s",),
     description="保存游戏",
     available_in=(GameMode.EXPLORING,),
+    is_available=lambda s: not s.is_in_combat,  # 战斗中不可保存
     execute=cmd_save,
 ))
 
@@ -841,8 +913,8 @@ async def handle_command(self, raw: str, mode: GameMode, ctx: CommandContext):
 
 ### 自动化收益
 
-- `/help` 自动从 `registry.get_available(mode)` 生成
-- `ContextualCompleter` 从 `registry.get_completions(mode)` 获取补全列表
+- `/help` 自动从 `registry.get_available(mode, state)` 生成
+- `ContextualCompleter` 从 `registry.get_completions(mode, state)` 获取补全列表
 - 新增命令 = 一个 `register()` 调用，不改任何调度代码
 - 别名和中文命令自动支持
 
@@ -899,7 +971,8 @@ class SeededRNG:
         return options[-1][0]
 
 def make_seed(location_id: str, turn: int, salt: str = "") -> int:
-    raw = f"{location_id}:{turn}:{salt}"
+    # 用 \x00 分隔，避免 "bar:10:" vs "bar:1:0" 碰撞
+    raw = f"{location_id}\x00{turn}\x00{salt}"
     digest = hashlib.md5(raw.encode()).digest()
     return struct.unpack("<I", digest[:4])[0]
 ```
@@ -1048,6 +1121,7 @@ async def cmd_journal(args: str, ctx: CommandContext):
 ### 与现有代码的集成
 
 - `GameLogger` 在 `GameApp` 启动时创建
+- **`GameLogger.close()` 必须在 `GameApp.run()` 的 `finally` 块中调用**，否则崩溃时 buffer 中的数据丢失
 - 在 `_handle_free_input()` 入口记录 `player_input`
 - 在 `Narrator.stream_narrative()` 完成后记录 `system_output`
 - 在 `StateManager.commit()` 后记录 `state_change`
@@ -1059,7 +1133,18 @@ async def cmd_journal(args: str, ctx: CommandContext):
 
 ### 来源
 
-Claude Code `memdir/` 模块。记忆按 `user` / `feedback` / `project` / `reference` 四类分类存储，每类有明确的 `when_to_save` 和 `how_to_use` 规则。索引文件（`MEMORY.md`）与详情文件分离。
+Claude Code `memdir/` 模块的分类索引 + 详情分离模式。
+
+### 设计动机
+
+游戏中 LLM 需要的上下文信息本质上有不同的**生命周期和重要性**：
+
+- **世界设定**（NPC 的秘密、已发现的传说）需要**永久保留**，它们是叙事一致性的基石
+- **任务进度**（当前目标、待完成步骤）在任务活跃期间很重要，完成后重要性骤降
+- **关系变化**（信任波动、关键对话）需要**中等保留**，影响 NPC 行为但不是每次都需要
+- **探索细节**（搜索结果、环境描述）是**短期记忆**，很快就会被更新的信息取代
+
+如果不分类，所有记忆平等竞争 prompt 空间。结果是：重要的世界设定被大量临时探索细节淹没，LLM 忘记关键信息，叙事出现矛盾。
 
 ### 当前问题
 
@@ -1131,7 +1216,16 @@ class ClassifiedMemorySystem:
 
     def _recency_score(self, entry: MemoryEntry, current_turn: int) -> float:
         age = current_turn - entry.last_relevant_turn
-        return 1.0 / (1.0 + age * 0.1)  # 越久远越低
+        decay_rate = _DECAY_RATE[entry.memory_type]
+        return 1.0 / (1.0 + age * decay_rate)
+
+# 每类记忆的时间衰减系数——LORE 几乎不衰减，DISCOVERY 快速衰减
+_DECAY_RATE: dict[MemoryType, float] = {
+    MemoryType.LORE: 0.01,           # 100 turns 前权重仍有 0.5
+    MemoryType.QUEST: 0.05,          # 20 turns 前权重 0.5
+    MemoryType.RELATIONSHIP: 0.08,   # ~12 turns 前权重 0.5
+    MemoryType.DISCOVERY: 0.2,       # 5 turns 前权重 0.5
+}
 ```
 
 各类记忆的保留规则：
@@ -1218,13 +1312,14 @@ class CachedPromptBuilder:
 
     def build_scene_context(self, state: WorldState) -> SceneContext:
         loc_id = state.player_location
-        version = state.turn  # 用 turn 作为版本号
+        # 用 state_version（每次 commit +1 的递增计数器）而非 turn
+        # 一个 turn 内可能有多次 commit（如 TAKE 后立刻 USE），turn 粒度不够
+        version = state.version
 
         cached = self._cache.get(loc_id, version)
         if cached is not None:
             return cached
 
-        # 并行构建各部分（Python 中用普通函数，不需要 await）
         context = SceneContext(
             location_description=self._content.resolve(loc_id, state),
             npcs_present=tuple(
@@ -1253,13 +1348,17 @@ def on_state_change(old: WorldState, new: WorldState):
     if old.player_location != new.player_location:
         scene_cache.invalidate(old.player_location)
 
-    # 物品变更：失效相关位置缓存
-    if old.items != new.items:
+    # 当前位置的物品变更：只失效当前位置缓存
+    old_local_items = old.items_at(new.player_location)
+    new_local_items = new.items_at(new.player_location)
+    if old_local_items != new_local_items:
         scene_cache.invalidate(new.player_location)
 
-    # NPC 移动：全部失效
-    if old.characters != new.characters:
-        scene_cache.invalidate()
+    # 当前位置的 NPC 变更：只失效当前位置缓存
+    old_local_npcs = old.npcs_at(new.player_location)
+    new_local_npcs = new.npcs_at(new.player_location)
+    if old_local_npcs != new_local_npcs:
+        scene_cache.invalidate(new.player_location)
 ```
 
 ### 与现有代码的集成
@@ -1273,9 +1372,9 @@ def on_state_change(old: WorldState, new: WorldState):
 ## 实施路线图
 
 ### Phase 1：核心架构（1-2 周）
-- **#1 FSM 状态机** — 重构 GameApp 为模式分发
+- **#6 命令注册表** — 最小改动、最高收益，替换 if-elif 分发，建立测试基础
 - **#5 响应式 Store** — 在 StateManager 上加 subscribe/onChange
-- **#6 命令注册表** — 替换 if-elif 分发
+- **#1 FSM 状态机** — 重构 GameApp 为模式分发（依赖 #6 的命令注册表）
 
 ### Phase 2：游戏机制（1-2 周）
 - **#4 Action 工厂** — 统一 action 接口，补全 TRADE/COMBAT handler
