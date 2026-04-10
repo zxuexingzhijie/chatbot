@@ -39,6 +39,29 @@ class WorldState(BaseModel):
     endings_reached: tuple[str, ...] = ()
     last_action: ActionResult | None = None
 
+    @property
+    def player_location(self) -> str:
+        return self.characters[self.player_id].location_id
+
+    @property
+    def current_location(self) -> Location:
+        return self.locations[self.player_location]
+
+    def npcs_at(self, location_id: str) -> list[Character]:
+        return [
+            c for c in self.characters.values()
+            if c.location_id == location_id and c.id != self.player_id
+        ]
+
+    @property
+    def npcs_in_location(self) -> list[Character]:
+        return self.npcs_at(self.player_location)
+
+    @property
+    def player_inventory(self) -> list[Item]:
+        player = self.characters[self.player_id]
+        return [self.items[iid] for iid in player.inventory if iid in self.items]
+
     @model_validator(mode="wrap")
     @classmethod
     def freeze_mutable_fields(cls, values: Any, handler: Any) -> WorldState:
