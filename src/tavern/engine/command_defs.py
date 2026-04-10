@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from tavern.engine.actions import ActionType
 from tavern.engine.commands import CommandContext, CommandRegistry, GameCommand
+from tavern.engine.fsm import GameMode
 from tavern.world.models import ActionRequest
 
 
@@ -85,8 +86,8 @@ async def cmd_quit(args: str, ctx: CommandContext) -> None:
     raise SystemExit(0)
 
 
-_ALL_MODES = ("exploring", "dialogue", "combat", "inventory", "shop")
-_EXPLORING = ("exploring",)
+_ALL_MODES = tuple(GameMode)
+_EXPLORING = (GameMode.EXPLORING,)
 
 
 def register_all_commands(registry: CommandRegistry) -> None:
