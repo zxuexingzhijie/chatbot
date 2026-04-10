@@ -172,6 +172,25 @@ class TestDialogueRenderer:
         output = console.file.getvalue()
         assert "2" in output
 
+    @pytest.mark.asyncio
+    async def test_render_dialogue_streaming_outputs_text(self):
+        console = Console(file=StringIO(), width=80)
+        renderer = Renderer(console=console)
+        await renderer.render_dialogue_streaming("你好啊！")
+        output = console.file.getvalue()
+        assert "你好啊！" in output
+
+    @pytest.mark.asyncio
+    async def test_render_dialogue_with_typewriter_outputs_all(self):
+        console = Console(file=StringIO(), width=80)
+        renderer = Renderer(console=console)
+        response = DialogueResponse(text="很高兴", trust_delta=3, mood="开心", wants_to_end=False)
+        await renderer.render_dialogue_with_typewriter("旅行者", response)
+        output = console.file.getvalue()
+        assert "旅行者" in output
+        assert "很高兴" in output
+        assert "3" in output
+
     def test_render_dialogue_end_shows_summary(self):
         console = Console(file=StringIO(), width=80)
         renderer = Renderer(console=console)
@@ -191,6 +210,73 @@ class TestDialogueRenderer:
         console = Console(file=StringIO(), width=80)
         renderer = Renderer(console=console)
         assert callable(renderer.get_dialogue_input)
+
+    def test_get_input_with_hints_callable(self):
+        from rich.console import Console
+        console = Console(file=StringIO(), width=80)
+        renderer = Renderer(console=console)
+        assert callable(renderer.get_input_with_hints)
+
+    @pytest.mark.asyncio
+    async def test_get_input_with_hints_empty_falls_back(self):
+        console = Console(file=StringIO(), width=80)
+        renderer = Renderer(console=console)
+        with patch.object(renderer, "get_input", new_callable=AsyncMock, return_value="test") as mock_get:
+            result = await renderer.get_input_with_hints([])
+            mock_get.assert_called_once()
+            assert result == "test"
+
+
+class TestInputMethods:
+    def test_get_input_with_card_hints_callable(self):
+        from rich.console import Console
+        console = Console(file=StringIO(), width=80)
+        renderer = Renderer(console=console)
+        assert callable(renderer.get_input_with_card_hints)
+
+    @pytest.mark.asyncio
+    async def test_get_input_with_card_hints_empty_falls_back(self):
+        console = Console(file=StringIO(), width=80)
+        renderer = Renderer(console=console)
+        with patch.object(renderer, "get_input", new_callable=AsyncMock, return_value="test") as mock_get:
+            result = await renderer.get_input_with_card_hints([])
+            mock_get.assert_called_once()
+            assert result == "test"
+
+    def test_card_hint_build_display_selected_has_border(self):
+        from tavern.cli.renderer import _build_card_display
+        lines = _build_card_display(["查看告示", "询问旅行者", "前往吧台"], selected=0, input_text="")
+        text = "".join(frag[1] for frag in lines)
+        assert "╭" in text
+        assert "查看告示" in text
+
+    def test_card_hint_build_display_unselected_no_border(self):
+        from tavern.cli.renderer import _build_card_display
+        lines = _build_card_display(["查看告示", "询问旅行者", "前往吧台"], selected=0, input_text="")
+        text = "".join(frag[1] for frag in lines)
+        border_sections = text.split("╭")
+        assert len(border_sections) == 2  # one split = one border
+
+    def test_card_hint_build_display_input_row_present(self):
+        from tavern.cli.renderer import _build_card_display
+        lines = _build_card_display(["查看告示"], selected=0, input_text="")
+        text = "".join(frag[1] for frag in lines)
+        assert "▸" in text
+
+    def test_card_hint_build_display_input_selected_has_border(self):
+        from tavern.cli.renderer import _build_card_display
+        lines = _build_card_display(["查看告示"], selected=1, input_text="你好")
+        text = "".join(frag[1] for frag in lines)
+        border_sections = text.split("╭")
+        assert len(border_sections) == 2
+        assert "你好" in text
+
+    def test_card_hint_build_display_nav_help(self):
+        from tavern.cli.renderer import _build_card_display
+        lines = _build_card_display(["查看告示"], selected=0, input_text="")
+        text = "".join(frag[1] for frag in lines)
+        assert "↑↓" in text
+        assert "确认" in text
 
 
 async def _async_gen(*values):
@@ -311,7 +397,7 @@ class TestAtmosphereStyles:
     def test_neutral_is_default_fallback(self):
         from tavern.cli.renderer import _ATMOSPHERE_STYLES
         assert "italic" in _ATMOSPHERE_STYLES["neutral"]
-        assert "dim" in _ATMOSPHERE_STYLES["neutral"]
+        assert "rgb(200,200,200)" in _ATMOSPHERE_STYLES["neutral"]
 
     @pytest.mark.asyncio
     async def test_render_stream_uses_atmosphere_style(self):
@@ -583,32 +669,6 @@ class TestContextualCompleter:
         completions = list(completer.get_completions(doc, None))
         assert completions == []
 
-
-class TestActionHints:
-    def test_render_action_hints_outputs_numbered_hints(self):
-        console = Console(file=StringIO(), force_terminal=True, width=80)
-        renderer = Renderer(console=console)
-        renderer.render_action_hints(["和旅行者交谈", "查看旧告示", "前往north"])
-        output = console.file.getvalue()
-        assert "1" in output
-        assert "2" in output
-        assert "3" in output
-        assert "旅行者" in output
-
-    def test_render_action_hints_empty_list(self):
-        console = Console(file=StringIO(), force_terminal=True, width=80)
-        renderer = Renderer(console=console)
-        renderer.render_action_hints([])
-        output = console.file.getvalue()
-        assert output.strip() == ""
-
-    def test_render_action_hints_single_hint(self):
-        console = Console(file=StringIO(), force_terminal=True, width=80)
-        renderer = Renderer(console=console)
-        renderer.render_action_hints(["环顾四周"])
-        output = console.file.getvalue()
-        assert "1" in output
-        assert "环顾四周" in output
 
 
 class TestEntityHighlighting:
