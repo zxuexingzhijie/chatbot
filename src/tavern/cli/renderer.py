@@ -9,6 +9,7 @@ from pathlib import Path
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.key_binding import KeyBindings
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -37,12 +38,12 @@ _COMMAND_COMPLETIONS: list[tuple[str, str]] = [
 ]
 
 _ATMOSPHERE_STYLES: dict[str, str] = {
-    "warm": "italic rgb(255,200,140)",
-    "cold": "italic rgb(140,170,220)",
-    "dim": "italic rgb(160,160,160)",
-    "natural": "italic rgb(140,200,140)",
-    "danger": "italic rgb(220,140,140)",
-    "neutral": "italic dim",
+    "warm": "italic rgb(255,210,160)",
+    "cold": "italic rgb(160,190,235)",
+    "dim": "italic rgb(185,185,185)",
+    "natural": "italic rgb(160,215,160)",
+    "danger": "italic rgb(235,160,160)",
+    "neutral": "italic rgb(200,200,200)",
 }
 
 _TYPEWRITER_PAUSES: dict[str, float] = {
@@ -52,6 +53,53 @@ _TYPEWRITER_PAUSES: dict[str, float] = {
     "…": 0.4,
     "\n\n": 0.5,
 }
+
+_TYPEWRITER_CHAR_DELAY: float = 0.03
+
+_CARD_MIN_WIDTH: int = 20
+_CARD_MAX_WIDTH: int = 40
+
+
+def _build_card_display(
+    hints: list[str],
+    selected: int,
+    input_text: str,
+) -> list[tuple[str, str]]:
+    input_display = f"▸ {input_text}_" if selected == len(hints) else f"▸ {input_text or '_'}"
+
+    all_labels = list(hints) + [input_display]
+    max_len = max(len(label) for label in all_labels)
+    width = max(_CARD_MIN_WIDTH, min(_CARD_MAX_WIDTH, max_len + 2))
+
+    top = f"  ╭{'─' * (width + 2)}╮\n"
+    bot = f"  ╰{'─' * (width + 2)}╯\n"
+
+    fragments: list[tuple[str, str]] = []
+
+    for i, label in enumerate(all_labels):
+        padded = label + " " * (width - len(label))
+        if i == selected:
+            fragments.append(("class:card.border", top))
+            fragments.append(("class:card.border", "  │ "))
+            fragments.append(("class:card.selected", padded))
+            fragments.append(("class:card.border", " │\n"))
+            fragments.append(("class:card.border", bot))
+        else:
+            fragments.append(("", f"    {label}\n"))
+
+    fragments.append(("", "\n"))
+    fragments.append(("class:card.nav", "  ↑↓ 切换  ↵ 确认\n"))
+
+    return fragments
+
+
+def _card_style():
+    from prompt_toolkit.styles import Style
+    return Style.from_dict({
+        "card.border": "ansicyan",
+        "card.selected": "bold",
+        "card.nav": "ansigray",
+    })
 
 
 class SlashCommandCompleter(Completer):
@@ -191,15 +239,13 @@ class Renderer:
         gold = player.stats.get("gold", "?")
         inv_count = len(player.inventory)
 
-        status = Table.grid(padding=(0, 2))
-        status.add_row(
-            f"[bold cyan]{location.name}[/]",
-            f"HP: [green]{hp}[/]",
-            f"Gold: [yellow]{gold}[/]",
-            f"背包: [white]{inv_count}件[/]",
-            f"回合: [dim]{state.turn}[/]",
+        self.console.print(
+            f"[bold cyan]{location.name}[/]  "
+            f"HP: [green]{hp}[/]  "
+            f"Gold: [yellow]{gold}[/]  "
+            f"背包: [white]{inv_count}件[/]  "
+            f"回合: [dim]{state.turn}[/]"
         )
-        self.console.print(Panel(status, style="dim", height=3))
 
     def render_result(self, result: ActionResult) -> None:
         if result.success:
@@ -214,38 +260,24 @@ class Renderer:
     async def render_stream(self, stream, *, atmosphere: str = "neutral") -> None:
         style = _ATMOSPHERE_STYLES.get(atmosphere, _ATMOSPHERE_STYLES["neutral"])
         self.console.print()
-        line_buffer = ""
         accumulated = ""
         try:
             async for chunk in stream:
-                line_buffer += chunk
                 accumulated += chunk
+                self.console.print(f"[{style}]{chunk}[/]", end="", highlight=False)
+                self.console.file.flush()
 
-                while "\n" in line_buffer:
-                    line, line_buffer = line_buffer.split("\n", 1)
-                    highlighted = self._highlight_entities(line)
-                    self.console.print(highlighted, end="\n", style=style, highlight=False)
-
-                    if self._typewriter_effect:
-                        stripped = line.rstrip()
-                        last_char = stripped[-1:] if stripped else ""
+                if self._typewriter_effect:
+                    stripped = chunk.rstrip()
+                    if stripped:
+                        last_char = stripped[-1]
                         if last_char in _TYPEWRITER_PAUSES:
                             await asyncio.sleep(_TYPEWRITER_PAUSES[last_char])
-
-                if self._typewriter_effect and not line_buffer:
                     if accumulated.endswith("\n\n"):
                         await asyncio.sleep(_TYPEWRITER_PAUSES["\n\n"])
         except Exception as exc:
             logger.warning("render_stream interrupted: %s", exc)
 
-        if line_buffer:
-            highlighted = self._highlight_entities(line_buffer)
-            self.console.print(highlighted, end="", style=style, highlight=False)
-            if self._typewriter_effect:
-                stripped = line_buffer.rstrip()
-                last_char = stripped[-1:] if stripped else ""
-                if last_char in _TYPEWRITER_PAUSES:
-                    await asyncio.sleep(_TYPEWRITER_PAUSES[last_char])
         self.console.print("\n")
 
     def render_inventory(self, state: WorldState) -> None:
@@ -377,6 +409,70 @@ class Renderer:
         except (EOFError, KeyboardInterrupt):
             return "/quit"
 
+    async def get_input_with_hints(self, hints: list[str]) -> str:
+        if not hints:
+            return await self.get_input()
+
+        max_hint_len = 20
+        selected_index = [0]
+
+        def _truncate(text: str) -> str:
+            if len(text) <= max_hint_len:
+                return text
+            return text[:max_hint_len - 1] + "…"
+
+        def _build_toolbar():
+            parts = []
+            for i, h in enumerate(hints):
+                label = _truncate(h)
+                if i == selected_index[0]:
+                    parts.append(
+                        f"<style bg='ansiblue' fg='ansiwhite'><b> {i + 1}. {label} </b></style>"
+                    )
+                else:
+                    parts.append(
+                        f" <style fg='ansicyan'>{i + 1}.</style> <style fg='ansiwhite'>{label}</style> "
+                    )
+            nav = "<style fg='ansigray'>←→选择 ↵确认</style>"
+            return HTML(" ".join(parts) + "  " + nav)
+
+        bindings = KeyBindings()
+
+        @bindings.add("left")
+        def _left(event):
+            selected_index[0] = (selected_index[0] - 1) % len(hints)
+
+        @bindings.add("right")
+        def _right(event):
+            selected_index[0] = (selected_index[0] + 1) % len(hints)
+
+        @bindings.add("up")
+        def _up(event):
+            selected_index[0] = (selected_index[0] - 1) % len(hints)
+
+        @bindings.add("down")
+        def _down(event):
+            selected_index[0] = (selected_index[0] + 1) % len(hints)
+
+        @bindings.add("enter")
+        def _enter(event):
+            buf = event.app.current_buffer
+            if not buf.text.strip():
+                buf.text = hints[selected_index[0]]
+            buf.validate_and_handle()
+
+        hint_session = PromptSession(
+            vi_mode=self._session.editing_mode.name == "VI",
+            completer=self._session.completer,
+            key_bindings=bindings,
+            bottom_toolbar=_build_toolbar,
+        )
+
+        try:
+            return (await hint_session.prompt_async(HTML("<ansigreen><b>▸ </b></ansigreen>"))).strip()
+        except (EOFError, KeyboardInterrupt):
+            return "/quit"
+
     def render_dialogue_start(
         self, ctx: DialogueContext, response: DialogueResponse
     ) -> None:
@@ -386,12 +482,23 @@ class Renderer:
         self.console.print(
             Panel(
                 f"[bold]{ctx.npc_name}[/] — 关系：{ctx.trust} ({tone_label})\n\n"
-                f"{response.text}\n\n"
                 "[dim]输入 bye / 再见 退出对话[/]",
                 title=f"💬 {ctx.npc_name}",
                 border_style="cyan",
             )
         )
+        self.console.print(f"  [cyan]{ctx.npc_name}:[/] ", end="")
+        self.console.file.flush()
+
+    async def render_dialogue_streaming(self, text: str) -> None:
+        for ch in text:
+            self.console.print(ch, end="", highlight=False)
+            self.console.file.flush()
+            if self._typewriter_effect and ch in _TYPEWRITER_PAUSES:
+                await asyncio.sleep(_TYPEWRITER_PAUSES[ch])
+            elif self._typewriter_effect:
+                await asyncio.sleep(_TYPEWRITER_CHAR_DELAY)
+        self.console.print()
 
     def render_dialogue(self, response: DialogueResponse) -> None:
         delta = response.trust_delta
@@ -408,6 +515,31 @@ class Renderer:
                 f"[dim]情绪: {response.mood}  关系变化: {delta_str}[/]",
                 border_style="cyan",
             )
+        )
+
+    async def render_dialogue_with_typewriter(
+        self, npc_name: str, response: DialogueResponse
+    ) -> None:
+        delta = response.trust_delta
+        if delta > 0:
+            delta_str = f"[green]+{delta}[/]"
+        elif delta < 0:
+            delta_str = f"[red]{delta}[/]"
+        else:
+            delta_str = "[dim]±0[/]"
+
+        self.console.print(f"  [cyan]{npc_name}:[/] ", end="")
+        self.console.file.flush()
+        for ch in response.text:
+            self.console.print(ch, end="", highlight=False)
+            self.console.file.flush()
+            if self._typewriter_effect and ch in _TYPEWRITER_PAUSES:
+                await asyncio.sleep(_TYPEWRITER_PAUSES[ch])
+            elif self._typewriter_effect:
+                await asyncio.sleep(_TYPEWRITER_CHAR_DELAY)
+        self.console.print()
+        self.console.print(
+            f"  [dim]情绪: {response.mood}  关系变化: {delta_str}[/]"
         )
 
     def render_dialogue_end(self, summary: DialogueSummary) -> None:
