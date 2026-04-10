@@ -8,6 +8,7 @@ from pathlib import Path
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
+from prompt_toolkit.shortcuts import CompleteStyle
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit import Application
@@ -209,6 +210,8 @@ class Renderer:
         self._session = PromptSession(
             vi_mode=vi_mode,
             completer=ContextualCompleter(state_provider=state_provider),
+            complete_style=CompleteStyle.COLUMN,
+            complete_while_typing=True,
         )
 
     def _highlight_entities(self, text: str) -> str:
