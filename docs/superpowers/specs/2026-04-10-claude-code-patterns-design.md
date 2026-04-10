@@ -70,6 +70,20 @@ class TransitionResult:
     next_mode: GameMode | None       # None = 保持当前模式
     side_effects: tuple[SideEffect, ...]  # 要执行的副作用列表
 
+@dataclass
+class ModeContext:
+    """Handler 可使用的服务引用集合。非游戏状态，而是基础设施。"""
+    state_manager: ReactiveStateManager
+    renderer: Renderer
+    dialogue_manager: DialogueManager
+    narrator: Narrator
+    memory: MemorySystem
+    persistence: SaveManager
+    story_engine: StoryEngine
+    command_registry: CommandRegistry
+    action_registry: ActionRegistry
+    logger: GameLogger
+
 class ModeHandler(Protocol):
     """每个游戏模式的处理器协议"""
 
@@ -87,9 +101,10 @@ class ModeHandler(Protocol):
     def get_keybindings(self) -> list[Keybinding]: ...
 ```
 
-模式转换表：
+模式转换表（示例，非穷举）：
 
 ```
+# 基本转换
 EXPLORING + "/talk npc"     -> DIALOGUE  (side_effect: start_dialogue)
 EXPLORING + "/attack npc"   -> COMBAT    (side_effect: init_combat)
 EXPLORING + "/inventory"    -> INVENTORY (side_effect: render_inventory)
@@ -99,7 +114,14 @@ COMBAT    + 战斗结束         -> EXPLORING (side_effect: apply_rewards)
 COMBAT    + 逃跑成功         -> EXPLORING (side_effect: flee_penalty)
 INVENTORY + "/back"         -> EXPLORING (side_effect: none)
 SHOP      + "/leave"        -> EXPLORING (side_effect: none)
+
+# 跨模式转换
+EXPLORING + 与商人对话选择交易 -> SHOP      (side_effect: open_shop)
+DIALOGUE  + NPC 敌意爆发       -> COMBAT    (side_effect: init_combat, end_dialogue)
+INVENTORY + 选择卖出物品        -> SHOP      (side_effect: open_sell_menu)
 ```
+
+转换表是**开放的**：新增游戏模式只需注册 `ModeHandler` + 在相关 handler 的 `handle_input` 中返回新的 `TransitionResult`。无需修改 `GameLoop` 或集中式转换表。
 
 主循环简化为：
 
@@ -237,15 +259,22 @@ DEFAULT_INPUT_MODE: dict[GameMode, InputMode] = {
 - HOTKEY 模式下显示底部提示栏：`[n/s/e/w] 移动  [l] 查看  [t] 交谈  [i] 背包  [Enter] 输入文字`
 - TEXT 模式下显示正常的文本输入框（prompt_toolkit input）
 
-快捷键只在 HOTKEY 模式下生效：
+快捷键只在 HOTKEY 模式下生效，但 TEXT 模式有一个例外——**空缓冲区快捷键**：
 
 ```python
 class KeybindingResolver:
     def resolve(
-        self, key: str, game_mode: GameMode, input_mode: InputMode
+        self, key: str, game_mode: GameMode, input_mode: InputMode,
+        buffer_empty: bool = False,
     ) -> str | None:
         if input_mode == InputMode.TEXT:
-            return None  # TEXT 模式下所有按键进文本 buffer
+            # TEXT 模式下，只有输入缓冲区为空时才检查快捷键
+            # 这让对话模式在空输入时可以用数字键选择 hint
+            if not buffer_empty:
+                return None
+            # 只匹配标记为 allow_in_text 的绑定
+            context_bindings = self._text_shortcuts.get(game_mode, {})
+            return context_bindings.get(key)
         context_bindings = self._by_context.get(game_mode, {})
         return context_bindings.get(key)
 ```
@@ -258,6 +287,7 @@ class Keybinding:
     key: str             # "n", "ctrl+s", "f1"
     action: str          # "move_north", "save_game", "show_help"
     description: str     # 显示在帮助中
+    allow_in_text: bool = False  # True = 在 TEXT 模式且缓冲区为空时也生效
 
 @dataclass(frozen=True)
 class KeybindingBlock:
@@ -283,10 +313,12 @@ DEFAULT_BINDINGS: list[KeybindingBlock] = [
     KeybindingBlock(
         context=GameMode.DIALOGUE,
         bindings=(
-            Keybinding("1", "tone_friendly", "友好语气"),
-            Keybinding("2", "tone_neutral", "中立语气"),
-            Keybinding("3", "tone_aggressive", "强硬语气"),
-            Keybinding("escape", "end_dialogue", "结束对话"),
+            # allow_in_text=True: 输入为空时数字键可快速选择 hint 选项
+            # 与现有 app.py 的 card hint 数字选择行为一致
+            Keybinding("1", "select_hint_1", "选择提示1", allow_in_text=True),
+            Keybinding("2", "select_hint_2", "选择提示2", allow_in_text=True),
+            Keybinding("3", "select_hint_3", "选择提示3", allow_in_text=True),
+            Keybinding("escape", "end_dialogue", "结束对话", allow_in_text=True),
         ),
     ),
     KeybindingBlock(
@@ -672,6 +704,48 @@ class ActionRegistry:
 - `IntentParser` 在构建 prompt 时可调用 `registry.get_available_actions(state)` 列出合法动作，提高 LLM 分类准确率
 - `Renderer.ContextualCompleter` 可用 `get_valid_targets()` 动态提供补全候选
 
+### WorldState 需要新增的便利属性
+
+示例代码中的 `s.current_location`、`s.npcs_in_location` 等属性在当前 `WorldState` 上不存在。需要新增以下便利方法/属性：
+
+```python
+class WorldState:
+    # 现有字段不变...
+
+    @property
+    def current_location(self) -> Location:
+        """当前玩家所在位置"""
+        return self.locations[self.player_location]
+
+    def npcs_at(self, location_id: str) -> list[Character]:
+        """指定位置的 NPC 列表"""
+        return [c for c in self.characters.values()
+                if c.location_id == location_id and c.id != self.player_id]
+
+    @property
+    def npcs_in_location(self) -> list[Character]:
+        """当前位置的 NPC（语法糖）"""
+        return self.npcs_at(self.player_location)
+
+    def items_at(self, location_id: str) -> list[Item]:
+        """指定位置的物品列表"""
+        loc = self.locations.get(location_id)
+        return [self.items[iid] for iid in (loc.item_ids if loc else [])]
+
+    def exits_at(self, location_id: str) -> list[Exit]:
+        """指定位置的出口列表"""
+        loc = self.locations.get(location_id)
+        return list(loc.exits) if loc else []
+
+    @property
+    def player_inventory(self) -> list[Item]:
+        """玩家背包物品"""
+        player = self.characters[self.player_id]
+        return [self.items[iid] for iid in player.inventory_ids]
+```
+
+这些属性是只读的、从现有数据派生的，不影响 frozen 不可变性。
+
 ---
 
 ## 5. 极简响应式 Store
@@ -701,6 +775,7 @@ await self.story_engine.check_triggers(...)
 
 ```python
 from typing import Callable, Awaitable
+import asyncio
 
 Listener = Callable[[], None]
 OnChange = Callable[[WorldState, WorldState], Awaitable[None]]  # async callback
@@ -713,8 +788,9 @@ class ReactiveStateManager:
         on_change: OnChange | None = None,
     ):
         self._state = initial
-        self._history: deque[WorldState] = deque(maxlen=max_history)
-        self._future: list[WorldState] = []
+        self._version = 0  # 每次 commit +1，供 §10 缓存使用
+        self._history: deque[tuple[WorldState, int]] = deque(maxlen=max_history)  # (state, version)
+        self._future: list[tuple[WorldState, int]] = []
         self._listeners: list[Listener] = []
         self._on_change = on_change
 
@@ -722,13 +798,20 @@ class ReactiveStateManager:
     def state(self) -> WorldState:
         return self._state
 
-    async def commit(self, diff: StateDiff, action: str = "") -> WorldState:
+    @property
+    def version(self) -> int:
+        return self._version
+
+    def commit(self, diff: StateDiff, action: str = "") -> WorldState:
+        """同步 commit。on_change 通过 fire-and-forget 异步执行，
+        避免整个调用链被迫改成 async。trade-off：副作用执行顺序不保证。"""
         old = self._state
-        self._history.append(old)
+        self._history.append((old, self._version))
         self._future.clear()
         self._state = old.apply(diff)
+        self._version += 1
         if self._on_change:
-            await self._on_change(old, self._state)
+            asyncio.create_task(self._on_change(old, self._state))
         # snapshot 迭代，防止回调中 unsubscribe 导致跳过元素
         for listener in list(self._listeners):
             listener()
@@ -739,14 +822,14 @@ class ReactiveStateManager:
         self._listeners.append(listener)
         return lambda: self._listeners.remove(listener)
 
-    async def undo(self) -> WorldState | None:
+    def undo(self) -> WorldState | None:
         if not self._history:
             return None
-        self._future.append(self._state)
+        self._future.append((self._state, self._version))
         old = self._state
-        self._state = self._history.pop()
+        self._state, self._version = self._history.pop()
         if self._on_change:
-            await self._on_change(old, self._state)
+            asyncio.create_task(self._on_change(old, self._state))
         for listener in list(self._listeners):
             listener()
         return self._state
@@ -782,7 +865,7 @@ def setup_state_reactions(
 ### 与现有代码的集成
 
 - `StateManager` 重命名为 `ReactiveStateManager`，新增 `subscribe()` 和 `on_change` 参数
-- `commit()` 和 `undo()` 改为 `async`，因为 `on_change` 回调需要 await
+- **`commit()` 和 `undo()` 保持同步**。`on_change` 通过 `asyncio.create_task()` fire-and-forget 执行，避免对 `rules.py` 等同步调用方的破坏性改动。trade-off：副作用执行顺序不保证，但副作用应当是独立的
 - `WorldState` 新增 `version: int` 字段（每次 `apply(diff)` 时 +1），供 §10 场景缓存使用
 - `GameApp` 中散落的手动副作用调用逐步迁移到 `on_change` 回调中
 - undo/redo 也会触发 `on_change`，确保副作用一致
@@ -1059,10 +1142,14 @@ class GameLogEntry:
     data: dict
 
 class GameLogger:
-    """异步批量写入的 JSONL 游戏日志"""
+    """异步批量写入的 JSONL 游戏日志，按 session 分文件"""
 
-    def __init__(self, log_path: Path, flush_interval: float = 2.0):
-        self._path = log_path
+    MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB 单文件上限
+
+    def __init__(self, log_dir: Path, session_id: str, flush_interval: float = 2.0):
+        self._log_dir = log_dir
+        self._session_id = session_id
+        self._path = log_dir / f"{session_id}.jsonl"
         self._buffer: list[GameLogEntry] = []
         self._flush_interval = flush_interval
         self._flush_task: asyncio.Task | None = None
@@ -1080,6 +1167,10 @@ class GameLogger:
     async def flush(self):
         if not self._buffer:
             return
+        # 文件大小检查：超过上限时轮转
+        if self._path.exists() and self._path.stat().st_size > self.MAX_FILE_SIZE:
+            rotated = self._path.with_suffix(f".{int(time.time())}.jsonl")
+            self._path.rename(rotated)
         entries = self._buffer.copy()
         self._buffer.clear()
         lines = [json.dumps(asdict(e), ensure_ascii=False) + "\n" for e in entries]
@@ -1087,8 +1178,33 @@ class GameLogger:
             await f.writelines(lines)
 
     def read_recent(self, n: int = 50) -> list[GameLogEntry]:
-        """读取最近 N 条记录（反向读取优化，大文件时从末尾读）"""
-        ...
+        """读取最近 N 条记录。
+        策略：从文件末尾 seek，逐块反向读取（每块 8KB），
+        解析 JSONL 行直到凑够 N 条。避免读取整个文件。
+        优先读取内存 buffer 中未刷盘的条目。"""
+        # 1. 先从 buffer 取未刷盘的
+        result = list(self._buffer[-n:])
+        remaining = n - len(result)
+        if remaining <= 0:
+            return result
+        # 2. 从文件末尾逐块反向读取
+        if not self._path.exists():
+            return result
+        chunk_size = 8192
+        with open(self._path, "rb") as f:
+            f.seek(0, 2)  # seek to end
+            pos = f.tell()
+            tail_lines: list[str] = []
+            while pos > 0 and len(tail_lines) < remaining:
+                read_size = min(chunk_size, pos)
+                pos -= read_size
+                f.seek(pos)
+                chunk = f.read(read_size).decode("utf-8")
+                tail_lines = chunk.splitlines() + tail_lines
+            for line in tail_lines[-remaining:]:
+                if line.strip():
+                    result.insert(0, GameLogEntry(**json.loads(line)))
+        return result[-n:]
 
     async def close(self):
         """关闭前刷盘"""
@@ -1282,24 +1398,41 @@ class SceneContext:
     ambience: AmbienceDetails  # 来自 #7 种子生成器的 generate_ambience()
 
 class SceneContextCache:
+    MAX_ENTRIES = 100  # LRU 上限，防止无限增长
+
     def __init__(self):
-        self._cache: dict[tuple[str, int], SceneContext] = {}
+        self._cache: OrderedDict[tuple[str, int], SceneContext] = OrderedDict()
 
     def get(self, location_id: str, state_version: int) -> SceneContext | None:
-        return self._cache.get((location_id, state_version))
+        key = (location_id, state_version)
+        if key in self._cache:
+            self._cache.move_to_end(key)  # LRU: 标记为最近使用
+            return self._cache[key]
+        return None
 
     def put(
         self, location_id: str, state_version: int, context: SceneContext
     ) -> None:
-        self._cache[(location_id, state_version)] = context
+        key = (location_id, state_version)
+        # 同一 location 的旧 version 条目已过期，清理掉
+        stale_keys = [
+            k for k in self._cache if k[0] == location_id and k[1] < state_version
+        ]
+        for k in stale_keys:
+            del self._cache[k]
+        self._cache[key] = context
+        self._cache.move_to_end(key)
+        # LRU 淘汰
+        while len(self._cache) > self.MAX_ENTRIES:
+            self._cache.popitem(last=False)
 
     def invalidate(self, location_id: str | None = None) -> None:
         if location_id is None:
             self._cache.clear()
         else:
-            self._cache = {
-                k: v for k, v in self._cache.items() if k[0] != location_id
-            }
+            keys_to_remove = [k for k in self._cache if k[0] == location_id]
+            for k in keys_to_remove:
+                del self._cache[k]
 ```
 
 在 prompt builder 中使用：
