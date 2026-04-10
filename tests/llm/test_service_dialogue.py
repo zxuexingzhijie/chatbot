@@ -94,3 +94,28 @@ class TestGenerateSummary:
         )
         assert "summary" in result
         assert "key_info" in result
+
+
+class TestGenerateActionHints:
+    @pytest.mark.asyncio
+    async def test_returns_hints_list(self, llm_service, mock_intent_adapter):
+        mock_intent_adapter.complete = AsyncMock(
+            return_value='{"hints": ["和旅行者交谈", "查看旧告示", "前往北方"]}'
+        )
+        result = await llm_service.generate_action_hints("prompt")
+        assert len(result) == 3
+        assert "和旅行者交谈" in result
+
+    @pytest.mark.asyncio
+    async def test_limits_to_three_hints(self, llm_service, mock_intent_adapter):
+        mock_intent_adapter.complete = AsyncMock(
+            return_value='{"hints": ["a", "b", "c", "d", "e"]}'
+        )
+        result = await llm_service.generate_action_hints("prompt")
+        assert len(result) == 3
+
+    @pytest.mark.asyncio
+    async def test_fallback_on_invalid_json(self, llm_service, mock_intent_adapter):
+        mock_intent_adapter.complete = AsyncMock(return_value="not json")
+        result = await llm_service.generate_action_hints("prompt")
+        assert result == []

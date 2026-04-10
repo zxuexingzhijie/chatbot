@@ -171,3 +171,31 @@ class TestBuildDialoguePromptWithSkills:
         )
         assert "格里姆知道地下室藏有秘密" in prompt
         assert "【NPC知识与行为】" in prompt
+
+
+class TestBuildDialoguePromptWithSceneContext:
+    def _make_ctx(self):
+        return DialogueContext(
+            npc_id="traveler",
+            npc_name="旅行者",
+            npc_traits=("友善",),
+            trust=10,
+            tone="neutral",
+            messages=(),
+            location_id="tavern_hall",
+            turn_entered=0,
+        )
+
+    def test_scene_context_empty_not_in_prompt(self):
+        ctx = self._make_ctx()
+        prompt = build_dialogue_prompt(ctx, "酒馆大厅", history_summaries=(), scene_context="")
+        assert "【当前情境】" not in prompt
+
+    def test_scene_context_included_in_prompt(self):
+        ctx = self._make_ctx()
+        prompt = build_dialogue_prompt(
+            ctx, "酒馆大厅", history_summaries=(),
+            scene_context="玩家刚刚搜索了吧台，发现了一张藏宝图。",
+        )
+        assert "【当前情境】" in prompt
+        assert "藏宝图" in prompt

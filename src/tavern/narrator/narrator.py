@@ -74,3 +74,50 @@ class Narrator:
         except Exception:
             logger.exception("Ending narrative stream failed, falling back to plain text")
             yield f"[结局: {ending_id}]"
+
+    async def stream_continue_narrative(
+        self,
+        state: WorldState,
+        memory_ctx: MemoryContext | None = None,
+    ) -> AsyncGenerator[str, None]:
+        player = state.characters[state.player_id]
+        location = state.locations[player.location_id]
+
+        npc_names = []
+        for npc_id in location.npcs:
+            npc = state.characters.get(npc_id)
+            if npc:
+                npc_names.append(npc.name)
+
+        item_names = []
+        for item_id in location.items:
+            item = state.items.get(item_id)
+            if item:
+                item_names.append(item.name)
+
+        memory_section = ""
+        if memory_ctx:
+            if memory_ctx.recent_events:
+                memory_section += f"\n最近事件: {memory_ctx.recent_events}"
+            if memory_ctx.relationships:
+                memory_section += f"\n人际关系: {memory_ctx.relationships}"
+
+        system_prompt = (
+            "你是一个奇幻文字冒险游戏的叙事者。用文学性的中文描写场景变化。\n"
+            "请基于当前场景，描述一小段时间流逝后发生的微妙变化或新事件。\n"
+            "2-3句话即可，要有画面感和沉浸感。不要重复之前的描述。"
+        )
+        user_content = (
+            f"地点: {location.name} — {location.description}\n"
+            f"玩家: {player.name}\n"
+            f"在场NPC: {', '.join(npc_names) if npc_names else '无'}\n"
+            f"可见物品: {', '.join(item_names) if item_names else '无'}"
+            f"{memory_section}\n\n"
+            "请描述场景中发生的新变化，推进一小步剧情。"
+        )
+        try:
+            async for chunk in self._llm.stream_narrative(system_prompt, user_content):
+                yield chunk
+        except Exception:
+            logger.exception("Continue narrative stream failed")
+            yield "时间悄悄流逝，酒馆中一切如常。"

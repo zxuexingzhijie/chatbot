@@ -32,6 +32,7 @@ def build_dialogue_prompt(
     history_summaries: tuple[str, ...],
     is_persuade: bool = False,
     active_skills_text: str = "",
+    scene_context: str = "",
 ) -> str:
     traits_desc = "、".join(ctx.npc_traits) if ctx.npc_traits else "普通人"
     tone_instruction = TONE_TEMPLATES[ctx.tone]
@@ -55,6 +56,10 @@ def build_dialogue_prompt(
     if active_skills_text:
         skills_section = f"\n\n【NPC知识与行为】\n{active_skills_text}"
 
+    scene_section = ""
+    if scene_context:
+        scene_section = f"\n\n【当前情境】\n{scene_context}"
+
     return (
         f"你扮演角色：{ctx.npc_name}\n"
         f"性格特征：{traits_desc}\n"
@@ -62,7 +67,7 @@ def build_dialogue_prompt(
         f"【语气指令】\n{tone_instruction}\n\n"
         f"【关系状态】\n"
         f"当前信任值：{ctx.trust}（{trust_label}）"
-        f"{history_section}\n\n"
+        f"{history_section}{scene_section}\n\n"
         "【回复格式】\n"
         "必须以JSON格式回复，字段：\n"
         '- "text": 你的回复内容（2-4句话）\n'

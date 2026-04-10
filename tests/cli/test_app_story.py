@@ -12,7 +12,10 @@ def _make_app():
     state = MagicMock()
     state.turn = 1
     state.player_id = "player"
-    state.characters = {"player": MagicMock(location_id="tavern", inventory=())}
+    player_mock = MagicMock(location_id="tavern", inventory=())
+    location_mock = MagicMock(atmosphere="neutral", npcs=(), items=())
+    state.characters = {"player": player_mock}
+    state.locations = {"tavern": location_mock}
     state.quests = {}
     state.story_active_since = {}
 
@@ -31,6 +34,7 @@ def _make_app():
     app._renderer.render_stream = AsyncMock()
     app._narrator = MagicMock()
     app._narrator.stream_narrative = MagicMock(return_value=AsyncMock())
+    app._narrator.stream_continue_narrative = MagicMock(return_value=AsyncMock())
     app._rules = MagicMock()
     app._parser = MagicMock()
     app._dialogue_manager = MagicMock()
@@ -41,6 +45,10 @@ def _make_app():
     app._pending_story_hints = []
     app._ending_triggered = None
     app._game_over = False
+    app._last_narrative = ""
+    mock_llm_svc = MagicMock()
+    mock_llm_svc.generate_action_hints = AsyncMock(return_value=[])
+    app._llm_service = mock_llm_svc
     app._story_engine = MagicMock()
     app._story_engine.check = MagicMock(return_value=[])
     app._story_engine.check_fail_forward = MagicMock(return_value=[])
@@ -86,13 +94,12 @@ def test_continue_command_triggers_story():
     assert call_args[0][1] == "continue"
 
 
-def test_continue_no_results_prints_message():
+def test_continue_no_results_streams_narrative():
     app, state = _make_app()
     app._story_engine.check = MagicMock(return_value=[])
     asyncio.run(app._handle_system_command("continue"))
-    app._renderer.console.print.assert_called()
-    printed = app._renderer.console.print.call_args[0][0]
-    assert "没有新的剧情" in printed
+    app._narrator.stream_continue_narrative.assert_called_once()
+    app._renderer.render_stream.assert_called_once()
 
 
 def test_apply_story_results_commits_diff():

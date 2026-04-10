@@ -130,3 +130,18 @@ class LLMService:
         ]
         async for chunk in self._narrative.stream(messages):
             yield chunk
+
+    async def generate_action_hints(
+        self,
+        prompt: str,
+    ) -> list[str]:
+        messages = [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": "请生成行动建议。"},
+        ]
+        raw = await self._intent.complete(messages)
+        try:
+            data = json.loads(raw if isinstance(raw, str) else str(raw))
+            return list(data.get("hints", []))[:3]
+        except (json.JSONDecodeError, ValueError):
+            return []

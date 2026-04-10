@@ -138,6 +138,10 @@ class TestGameAppMemory:
         app._pending_story_hints = []
         app._ending_triggered = None
         app._game_over = False
+        app._last_narrative = ""
+        mock_llm_svc = MagicMock()
+        mock_llm_svc.generate_action_hints = AsyncMock(return_value=[])
+        app._llm_service = mock_llm_svc
 
         await app._handle_free_input("看看四周")
 
@@ -168,6 +172,8 @@ class TestGameAppMemory:
         app._dialogue_manager = mock_dialogue_manager
         app._dialogue_ctx = mock_dialogue_ctx
         app._renderer = MagicMock()
+        app._renderer.render_dialogue_with_typewriter = AsyncMock()
+        app._last_narrative = ""
 
         await app._process_dialogue_input("你好", mock_dialogue_ctx)
 
@@ -176,7 +182,8 @@ class TestGameAppMemory:
             state=mock_state,
         )
         mock_dialogue_manager.respond.assert_called_once_with(
-            mock_dialogue_ctx, "你好", mock_state, mock_memory_ctx
+            mock_dialogue_ctx, "你好", mock_state, mock_memory_ctx,
+            scene_context="",
         )
 
     def test_apply_dialogue_end_adds_relationship_changes(self, mock_state, mock_summary):

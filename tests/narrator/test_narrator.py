@@ -206,3 +206,26 @@ class TestEndingNarrative:
             chunks.append(chunk)
         assert len(chunks) == 1
         assert "good_ending" in chunks[0]
+
+
+class TestContinueNarrative:
+    @pytest.mark.asyncio
+    async def test_stream_continue_yields_chunks(self, narrator, mock_llm_service, sample_world_state):
+        mock_llm_service.stream_narrative = MagicMock(
+            return_value=_async_gen("时间流逝，", "酒馆中灯火摇曳。")
+        )
+        chunks = []
+        async for chunk in narrator.stream_continue_narrative(sample_world_state):
+            chunks.append(chunk)
+        assert chunks == ["时间流逝，", "酒馆中灯火摇曳。"]
+
+    @pytest.mark.asyncio
+    async def test_stream_continue_fallback_on_error(self, narrator, mock_llm_service, sample_world_state):
+        mock_llm_service.stream_narrative = MagicMock(
+            return_value=_raise_on_iter()
+        )
+        chunks = []
+        async for chunk in narrator.stream_continue_narrative(sample_world_state):
+            chunks.append(chunk)
+        assert len(chunks) == 1
+        assert "酒馆" in chunks[0]

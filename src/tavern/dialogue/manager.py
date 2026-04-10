@@ -30,6 +30,7 @@ class DialogueManager:
     async def start(
         self, state: WorldState, npc_id: str, is_persuade: bool = False,
         memory_ctx: MemoryContext | None = None,
+        scene_context: str = "",
     ) -> tuple[DialogueContext, DialogueResponse]:
         player = state.characters[state.player_id]
         location = state.locations[player.location_id]
@@ -63,6 +64,7 @@ class DialogueManager:
         system_prompt = build_dialogue_prompt(
             ctx, location.name, history_summaries, is_persuade=is_persuade,
             active_skills_text=memory_ctx.active_skills_text if memory_ctx else "",
+            scene_context=scene_context,
         )
         response = await self._llm.generate_dialogue(system_prompt, messages=[])
 
@@ -90,6 +92,7 @@ class DialogueManager:
     async def respond(
         self, ctx: DialogueContext, player_input: str, state: WorldState,
         memory_ctx: MemoryContext | None = None,
+        scene_context: str = "",
     ) -> tuple[DialogueContext, DialogueResponse]:
         npc_turn_count = sum(1 for m in ctx.messages if m.role == "npc")
         if npc_turn_count >= MAX_TURNS:
@@ -113,6 +116,7 @@ class DialogueManager:
         system_prompt = build_dialogue_prompt(
             ctx, location.name, history_summaries,
             active_skills_text=memory_ctx.active_skills_text if memory_ctx else "",
+            scene_context=scene_context,
         )
 
         llm_messages = [
