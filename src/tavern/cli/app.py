@@ -89,6 +89,7 @@ class GameApp:
         self._parser = IntentParser(llm_service=llm_service)
         self._dialogue_manager = DialogueManager(llm_service=llm_service)
         self._narrator = Narrator(llm_service=llm_service)
+        self._llm_service = llm_service
         skills_dir = scenario_path / "skills"
         self._memory = MemorySystem(
             state=initial_state,
@@ -109,6 +110,7 @@ class GameApp:
         self._ending_triggered: tuple[str, str] | None = None
         self._game_over = False
         self._last_hints: list[str] = []
+        self._last_narrative: str = ""
 
         debug_config = config.get("debug", {})
         self._show_intent = debug_config.get("show_intent_json", False)
@@ -201,6 +203,63 @@ class GameApp:
     def _generate_action_hints(self) -> list[str]:
         return self._generate_action_hints_from_state(self.state)
 
+    async def _generate_smart_hints(self, last_narrative: str = "") -> list[str]:
+        state = self.state
+        player = state.characters.get(state.player_id)
+        if player is None:
+            return self._generate_action_hints()
+
+        location = state.locations.get(player.location_id)
+        if location is None:
+            return self._generate_action_hints()
+
+        npc_names = []
+        for npc_id in location.npcs:
+            npc = state.characters.get(npc_id)
+            if npc:
+                npc_names.append(npc.name)
+
+        item_names = []
+        for item_id in location.items:
+            item = state.items.get(item_id)
+            if item:
+                item_names.append(item.name)
+
+        exit_dirs = list(location.exits.keys())
+
+        memory_ctx = self._memory.build_context(
+            actor=state.player_id,
+            state=state,
+        )
+        recent_events = ""
+        if memory_ctx and memory_ctx.recent_events:
+            recent_events = f"\n最近事件: {memory_ctx.recent_events}"
+
+        narrative_section = ""
+        if last_narrative:
+            narrative_section = f"\n刚发生的事: {last_narrative[:200]}"
+
+        prompt = (
+            "你是一个奇幻文字冒险游戏的行动建议生成器。\n"
+            f"地点: {location.name}\n"
+            f"NPC: {', '.join(npc_names) if npc_names else '无'}\n"
+            f"物品: {', '.join(item_names) if item_names else '无'}\n"
+            f"出口: {', '.join(exit_dirs) if exit_dirs else '无'}"
+            f"{recent_events}{narrative_section}\n\n"
+            "请生成2-3个当前情境下最合理的行动建议。\n"
+            "要求：每个建议必须精简到10个字以内，用动词开头，如：查看旧告示、询问旅行者、前往吧台。\n"
+            '以JSON格式回复: {"hints": ["建议1", "建议2", "建议3"]}'
+        )
+
+        try:
+            hints = await self._llm_service.generate_action_hints(prompt)
+            if hints:
+                return hints[:3]
+        except Exception:
+            logger.warning("Smart hints generation failed, falling back to static")
+
+        return self._generate_action_hints()
+
     async def run(self) -> None:
         self._renderer.render_welcome(self.state, self._scenario_meta.name)
         self._renderer.render_status_bar(self.state)
@@ -208,6 +267,8 @@ class GameApp:
         while not self._game_over:
             if self._dialogue_manager.is_active and self._dialogue_ctx is not None:
                 user_input = await self._renderer.get_dialogue_input()
+            elif self._last_hints:
+                user_input = await self._renderer.get_input_with_card_hints(self._last_hints)
             else:
                 user_input = await self._renderer.get_input()
 
@@ -238,7 +299,7 @@ class GameApp:
                 continue
 
             parts = command[1:].split()
-            cmd_name = parts[0] if parts else ""
+            cmd_name = parts[0] if parts else "help"
             slot_arg = parts[1] if len(parts) > 1 else "autosave"
 
             if cmd_name in SYSTEM_COMMANDS:
@@ -281,9 +342,7 @@ class GameApp:
                 self.state, "continue",
                 self._memory._timeline, self._memory._relationship_graph,
             )
-            if not story_results:
-                self._renderer.console.print("\n[dim]目前没有新的剧情推进。[/]\n")
-            else:
+            if story_results:
                 self._apply_story_results_sync(story_results)
                 if self._ending_triggered is not None:
                     ending_id, ending_hint = self._ending_triggered
@@ -298,6 +357,19 @@ class GameApp:
                     )
                     self._renderer.render_ending(ending_id)
                     self._game_over = True
+            else:
+                player = self.state.characters[self.state.player_id]
+                location = self.state.locations[player.location_id]
+                memory_ctx = self._memory.build_context(
+                    actor=self.state.player_id,
+                    state=self.state,
+                )
+                await self._renderer.render_stream(
+                    self._narrator.stream_continue_narrative(
+                        self.state, memory_ctx,
+                    ),
+                    atmosphere=location.atmosphere,
+                )
             self._update_story_active_since()
 
         elif command == "help":
@@ -384,9 +456,11 @@ class GameApp:
                     self.state, result.target,
                     is_persuade=(request.action == ActionType.PERSUADE),
                     memory_ctx=memory_ctx,
+                    scene_context=self._last_narrative,
                 )
                 self._dialogue_ctx = ctx
                 self._renderer.render_dialogue_start(ctx, opening_response)
+                await self._renderer.render_dialogue_streaming(opening_response.text)
                 self._renderer.render_status_bar(self.state)
                 return
             except ValueError as e:
@@ -423,15 +497,23 @@ class GameApp:
                 state=self.state,
             )
             combined_hint = "\n".join(self._pending_story_hints) or None
+            narrative_stream = self._narrator.stream_narrative(result, self.state, memory_ctx, story_hint=combined_hint)
+            captured: list[str] = []
+
+            async def _capture_and_yield():
+                async for chunk in narrative_stream:
+                    captured.append(chunk)
+                    yield chunk
+
             await self._renderer.render_stream(
-                self._narrator.stream_narrative(result, self.state, memory_ctx, story_hint=combined_hint),
+                _capture_and_yield(),
                 atmosphere=location.atmosphere,
             )
+            self._last_narrative = "".join(captured)[:500]
         else:
             self._renderer.render_result(result)
         self._pending_story_hints.clear()
-        self._last_hints = self._generate_action_hints()
-        self._renderer.render_action_hints(self._last_hints)
+        self._last_hints = await self._generate_smart_hints(self._last_narrative)
         self._renderer.render_status_bar(self.state)
 
     async def _process_dialogue_input(
@@ -452,10 +534,11 @@ class GameApp:
         )
         async with self._renderer.spinner("思考中..."):
             new_ctx, response = await self._dialogue_manager.respond(
-                ctx, user_input, self.state, memory_ctx
+                ctx, user_input, self.state, memory_ctx,
+                scene_context=self._last_narrative,
             )
         self._dialogue_ctx = new_ctx
-        self._renderer.render_dialogue(response)
+        await self._renderer.render_dialogue_with_typewriter(ctx.npc_name, response)
 
         if response.wants_to_end:
             summary = await self._dialogue_manager.end(new_ctx)
