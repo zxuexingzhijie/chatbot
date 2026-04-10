@@ -263,6 +263,23 @@ class TestInputMethods:
         assert "↑↓" in text
         assert "确认" in text
 
+    def test_card_hint_cjk_width_alignment(self):
+        from tavern.cli.renderer import _build_card_display
+        lines = _build_card_display(["查看旧告示", "询问旅行者"], selected=0, input_text="")
+        text = "".join(frag[1] for frag in lines)
+        for line in text.split("\n"):
+            if "╭" in line:
+                top_width = len(line.rstrip())
+            if "│" in line and "查看" in line:
+                content_line = line.rstrip()
+                assert content_line.endswith("│"), f"Right border misaligned: {content_line!r}"
+
+    def test_display_width_cjk(self):
+        from tavern.cli.renderer import _display_width
+        assert _display_width("abc") == 3
+        assert _display_width("你好") == 4
+        assert _display_width("ab你好cd") == 8
+
 
 async def _async_gen(*values):
     for v in values:

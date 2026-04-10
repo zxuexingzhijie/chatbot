@@ -63,6 +63,20 @@ _CARD_MIN_WIDTH: int = 20
 _CARD_MAX_WIDTH: int = 40
 
 
+def _display_width(text: str) -> int:
+    import unicodedata
+    w = 0
+    for ch in text:
+        eaw = unicodedata.east_asian_width(ch)
+        w += 2 if eaw in ("W", "F") else 1
+    return w
+
+
+def _pad_to_width(text: str, target: int) -> str:
+    current = _display_width(text)
+    return text + " " * max(0, target - current)
+
+
 def _build_card_display(
     hints: list[str],
     selected: int,
@@ -71,8 +85,8 @@ def _build_card_display(
     input_display = f"▸ {input_text}_" if selected == len(hints) else f"▸ {input_text or '_'}"
 
     all_labels = list(hints) + [input_display]
-    max_len = max(len(label) for label in all_labels)
-    width = max(_CARD_MIN_WIDTH, min(_CARD_MAX_WIDTH, max_len + 2))
+    max_dw = max(_display_width(label) for label in all_labels)
+    width = max(_CARD_MIN_WIDTH, min(_CARD_MAX_WIDTH, max_dw + 2))
 
     top = f"  ╭{'─' * (width + 2)}╮\n"
     bot = f"  ╰{'─' * (width + 2)}╯\n"
@@ -80,7 +94,7 @@ def _build_card_display(
     fragments: list[tuple[str, str]] = []
 
     for i, label in enumerate(all_labels):
-        padded = label + " " * (width - len(label))
+        padded = _pad_to_width(label, width)
         if i == selected:
             fragments.append(("class:card.border", top))
             fragments.append(("class:card.border", "  │ "))
