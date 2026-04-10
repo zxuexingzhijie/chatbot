@@ -1,4 +1,7 @@
-from tavern.engine.seeded_rng import SeededRNG, make_seed, generate_ambience, AmbienceDetails
+from tavern.engine.seeded_rng import (
+    SeededRNG, make_seed, generate_ambience, AmbienceDetails,
+    generate_npc_appearance, should_trigger_random_event,
+)
 
 
 class TestSeededRNG:
@@ -68,3 +71,22 @@ class TestGenerateAmbience:
     def test_different_turn_may_differ(self):
         results = {generate_ambience("tavern_hall", t).weather for t in range(20)}
         assert len(results) > 1
+
+
+class TestGenerateNpcAppearance:
+    def test_returns_expected_keys(self):
+        result = generate_npc_appearance("guard_01")
+        assert set(result.keys()) == {"scar", "hair_detail", "clothing_condition"}
+
+    def test_deterministic(self):
+        assert generate_npc_appearance("guard_01") == generate_npc_appearance("guard_01")
+
+
+class TestShouldTriggerRandomEvent:
+    def test_deterministic(self):
+        a = should_trigger_random_event("tavern_hall", 5)
+        b = should_trigger_random_event("tavern_hall", 5)
+        assert a == b
+
+    def test_returns_bool(self):
+        assert isinstance(should_trigger_random_event("tavern_hall", 1), bool)
