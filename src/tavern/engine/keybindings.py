@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
 
@@ -17,7 +18,7 @@ class KeybindingBlock:
     bindings: tuple[Keybinding, ...]
 
 
-DEFAULT_BINDINGS: list[KeybindingBlock] = [
+DEFAULT_BINDINGS: tuple[KeybindingBlock, ...] = (
     KeybindingBlock(
         context=GameMode.EXPLORING,
         bindings=(
@@ -51,11 +52,11 @@ DEFAULT_BINDINGS: list[KeybindingBlock] = [
             Keybinding("2", "use_skill_2", "使用技能2"),
         ),
     ),
-]
+)
 
 
 class KeybindingResolver:
-    def __init__(self, blocks: list[KeybindingBlock]) -> None:
+    def __init__(self, blocks: Sequence[KeybindingBlock]) -> None:
         self._by_context: dict[GameMode, dict[str, str]] = {}
         self._text_shortcuts: dict[GameMode, dict[str, str]] = {}
         for block in blocks:

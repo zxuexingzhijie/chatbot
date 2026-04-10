@@ -1,3 +1,7 @@
+import dataclasses
+
+import pytest
+
 from tavern.engine.action_defs import ActionDef, build_action, ACTION_DEFAULTS
 from tavern.engine.actions import ActionType
 from tavern.world.models import ActionRequest, ActionResult
@@ -21,8 +25,7 @@ class TestActionDef:
         assert diff is None
 
     def test_frozen(self):
-        import dataclasses
-        with __import__('pytest').raises(dataclasses.FrozenInstanceError):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             ACTION_DEFAULTS.action_type = ActionType.MOVE
 
 
