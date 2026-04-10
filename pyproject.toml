@@ -1,6 +1,6 @@
 [project]
 name = "tavern-game"
-version = "1.0.0.3"
+version = "1.0.0.4"
 description = "CLI interactive novel game — fantasy tavern exploration"
 requires-python = ">=3.12"
 dependencies = [
