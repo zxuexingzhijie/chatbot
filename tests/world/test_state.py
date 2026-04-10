@@ -118,9 +118,8 @@ class TestStateManager:
         restored = sample_state_manager.undo()
         assert restored.turn == 0
 
-    def test_undo_on_empty_history_raises(self, sample_state_manager):
-        with pytest.raises(IndexError):
-            sample_state_manager.undo()
+    def test_undo_on_empty_history_returns_none(self, sample_state_manager):
+        assert sample_state_manager.undo() is None
 
     def test_redo_after_undo(self, sample_state_manager):
         diff = StateDiff(turn_increment=1)
@@ -132,9 +131,8 @@ class TestStateManager:
         redone = sample_state_manager.redo()
         assert redone.turn == 1
 
-    def test_redo_on_empty_raises(self, sample_state_manager):
-        with pytest.raises(IndexError):
-            sample_state_manager.redo()
+    def test_redo_on_empty_returns_none(self, sample_state_manager):
+        assert sample_state_manager.redo() is None
 
     def test_commit_clears_redo_stack(self, sample_state_manager):
         diff1 = StateDiff(turn_increment=1)
@@ -148,8 +146,7 @@ class TestStateManager:
             success=True, action=ActionType.MOVE, message="走"
         )
         sample_state_manager.commit(diff2, action2)
-        with pytest.raises(IndexError):
-            sample_state_manager.redo()
+        assert sample_state_manager.redo() is None
 
 
 # --- story_active_since tests ---

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 from collections import deque
+from typing import Any, Awaitable, Callable
 from types import MappingProxyType
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -117,30 +118,84 @@ class WorldState(BaseModel):
         )
 
 
-class StateManager:
-    def __init__(self, initial_state: WorldState, max_history: int = 50):
-        self._current = initial_state
-        self._history: deque[WorldState] = deque(maxlen=max_history)
-        self._redo: deque[WorldState] = deque(maxlen=max_history)
+Listener = Callable[[], None]
+OnChange = Callable[["WorldState", "WorldState"], Awaitable[None]]
+
+
+class ReactiveStateManager:
+    def __init__(
+        self,
+        initial_state: WorldState,
+        max_history: int = 50,
+        on_change: OnChange | None = None,
+    ):
+        self._state = initial_state
+        self._version = 0
+        self._history: deque[tuple[WorldState, int]] = deque(maxlen=max_history)
+        self._future: list[tuple[WorldState, int]] = []
+        self._listeners: list[Listener] = []
+        self._on_change = on_change
 
     @property
     def current(self) -> WorldState:
-        return self._current
+        return self._state
 
-    def commit(self, diff: StateDiff, action: ActionResult) -> WorldState:
-        self._history.append(self._current)
-        self._current = self._current.apply(diff, action=action)
-        self._redo.clear()
-        return self._current
+    @property
+    def state(self) -> WorldState:
+        return self._state
 
-    def undo(self) -> WorldState:
-        previous = self._history.pop()
-        self._redo.append(self._current)
-        self._current = previous
-        return self._current
+    @property
+    def version(self) -> int:
+        return self._version
 
-    def redo(self) -> WorldState:
-        next_state = self._redo.pop()
-        self._history.append(self._current)
-        self._current = next_state
-        return self._current
+    def _notify(self, old: WorldState) -> None:
+        if self._on_change:
+            try:
+                asyncio.get_running_loop()
+                asyncio.create_task(self._on_change(old, self._state))
+            except RuntimeError:
+                pass
+        for listener in list(self._listeners):
+            listener()
+
+    def commit(self, diff: StateDiff, action: ActionResult | None = None) -> WorldState:
+        old = self._state
+        self._history.append((old, self._version))
+        self._future.clear()
+        self._state = old.apply(diff, action=action)
+        self._version += 1
+        self._notify(old)
+        return self._state
+
+    def subscribe(self, listener: Listener) -> Callable[[], None]:
+        self._listeners.append(listener)
+        return lambda: self._listeners.remove(listener)
+
+    def undo(self) -> WorldState | None:
+        if not self._history:
+            return None
+        self._future.append((self._state, self._version))
+        old = self._state
+        self._state, self._version = self._history.pop()
+        self._notify(old)
+        return self._state
+
+    def redo(self) -> WorldState | None:
+        if not self._future:
+            return None
+        self._history.append((self._state, self._version))
+        old = self._state
+        self._state, self._version = self._future.pop()
+        self._notify(old)
+        return self._state
+
+    def replace(self, new_state: WorldState) -> None:
+        old = self._state
+        self._state = new_state
+        self._history.clear()
+        self._future.clear()
+        self._version += 1
+        self._notify(old)
+
+
+StateManager = ReactiveStateManager
