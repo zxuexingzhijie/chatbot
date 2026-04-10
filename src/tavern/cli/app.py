@@ -328,14 +328,14 @@ class GameApp:
             )
 
         elif command == "undo":
-            try:
-                self._state_manager.undo()
+            undo_result = self._state_manager.undo()
+            if undo_result is None:
+                self._renderer.console.print("\n[red]没有可以回退的步骤。[/]\n")
+            else:
                 self._renderer.console.print("\n[dim]已回退上一步。[/]\n")
                 request = ActionRequest(action=ActionType.LOOK)
                 result, _ = self._rules.validate(request, self.state)
                 self._renderer.render_result(result)
-            except IndexError:
-                self._renderer.console.print("\n[red]没有可以回退的步骤。[/]\n")
 
         elif command == "continue":
             story_results = self._story_engine.check(
