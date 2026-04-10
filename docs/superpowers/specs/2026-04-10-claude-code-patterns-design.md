@@ -94,11 +94,13 @@ class ModeHandler(Protocol):
         self, raw: str, state: WorldState, context: ModeContext
     ) -> TransitionResult: ...
 
-    def get_available_commands(self, state: WorldState) -> list[CommandInfo]: ...
-
     def get_prompt_config(self, state: WorldState) -> PromptConfig: ...
 
     def get_keybindings(self) -> list[Keybinding]: ...
+
+    # 注意：没有 get_available_commands()。
+    # 命令归 §6 CommandRegistry 统一管理，通过 available_in + is_available 控制。
+    # ModeHandler 需要命令列表时，通过 context.command_registry.get_available(self.mode, state) 获取。
 ```
 
 模式转换表（示例，非穷举）：
@@ -148,16 +150,17 @@ class GameLoop:
 
 ```python
 class EffectKind(Enum):
+    """FSM 副作用：只负责模式转换相关的命令式操作。
+    不包含 SAVE、RENDER 等状态驱动的反应——那些由 §5 on_change 负责。"""
     START_DIALOGUE = "start_dialogue"
+    END_DIALOGUE = "end_dialogue"
     APPLY_DIFF = "apply_diff"
     EMIT_EVENT = "emit_event"
-    RENDER = "render"
-    SAVE = "save"
-    END_DIALOGUE = "end_dialogue"
     APPLY_TRUST = "apply_trust"
     INIT_COMBAT = "init_combat"
     APPLY_REWARDS = "apply_rewards"
     FLEE_PENALTY = "flee_penalty"
+    OPEN_SHOP = "open_shop"
 
 @dataclass(frozen=True)
 class SideEffect:
@@ -169,6 +172,20 @@ SideEffect(kind=EffectKind.START_DIALOGUE, payload={"npc_id": "bartender_grim"})
 SideEffect(kind=EffectKind.APPLY_DIFF, payload={"diff": state_diff})
 SideEffect(kind=EffectKind.EMIT_EVENT, payload={"event": Event(...)})
 ```
+
+#### FSM SideEffect 与 §5 on_change 的职责边界
+
+两套机制分工明确，**不重叠**：
+
+| 机制 | 职责 | 触发时机 | 示例 |
+|------|------|---------|------|
+| FSM SideEffect | 模式转换相关的命令式操作 | handler 返回后，由 GameLoop 执行 | start_dialogue, init_combat, apply_diff |
+| §5 on_change | 状态变更自动触发的反应式副作用 | state_manager.commit() 后 | auto_save, cache invalidation, story trigger check, room description |
+
+规则：
+- **handler 不做 save、render、trigger check**——这些是状态变更的自然后果，由 on_change 统一处理
+- **on_change 不做模式切换**——它不知道 FSM 的存在，只关心 WorldState 变化
+- 唯一的桥梁是 `APPLY_DIFF`：handler 返回 diff → GameLoop 执行 SideEffect(APPLY_DIFF) → commit() → 触发 on_change
 
 副作用执行器是一个注册表，值为 async 函数引用（非 lambda，支持错误处理和复杂逻辑）：
 
@@ -192,8 +209,7 @@ EFFECT_EXECUTORS: dict[EffectKind, EffectExecutor] = {
     EffectKind.START_DIALOGUE: _exec_start_dialogue,
     EffectKind.APPLY_DIFF: _exec_apply_diff,
     EffectKind.EMIT_EVENT: lambda p, ctx: ctx.memory.timeline.append(p["event"]),
-    EffectKind.RENDER: lambda p, ctx: ctx.renderer.render(p["content"]),
-    EffectKind.SAVE: _exec_save,
+    # 注意：SAVE 和 RENDER 不在这里——由 §5 on_change 负责
 }
 ```
 
@@ -201,7 +217,7 @@ EFFECT_EXECUTORS: dict[EffectKind, EffectExecutor] = {
 
 - `_process_dialogue_input()` 提取为 `DialogueModeHandler`
 - `_handle_free_input()` 提取为 `ExploringModeHandler`
-- `_handle_system_command()` 的命令分发逻辑移入各个 handler 的 `get_available_commands()` 返回值中
+- `_handle_system_command()` 的命令分发交给 §6 `CommandRegistry`，handler 通过 `context.command_registry` 查询
 - `GameApp` 瘦身为 `GameLoop`，只做模式分发和副作用执行
 
 ### 测试策略
@@ -553,11 +569,28 @@ class ContentLoader:
 ---
 id: cellar_secret_revealed
 type: event
-activate_when:
+activate_when:   # AND 语义：所有条件都满足才激活
   - "event_exists:cellar_entered"
   - "relationship:bartender_grim >= 30"
 ---
 ```
+
+`activate_when` 列表中多个条件为 **AND** 关系（全部满足才激活）。单条件直接写一项即可。
+
+### 条件求值器复用
+
+`ContentLoader._evaluate_condition()` **必须复用** `engine/story_conditions.py` 中已有的 `CONDITION_REGISTRY`，而不是另起一套。已有的条件类型（`location`、`inventory`、`relationship`、`event`、`quest` 等）覆盖了内容系统的所有需求。
+
+```python
+# ContentLoader 中
+from tavern.engine.story_conditions import evaluate_condition
+
+def _evaluate_condition(self, condition_str: str, state: WorldState) -> bool:
+    """解析 'type:params' 格式并委托给 CONDITION_REGISTRY"""
+    return evaluate_condition(condition_str, state)
+```
+
+如需新增条件类型（如 `time:night`），在 `story_conditions.py` 中用 `@register_condition()` 注册，ContentLoader 自动获得。
 
 这避免了在游戏启动时加载所有内容，也为大型场景的按需加载做好准备。
 
@@ -567,6 +600,30 @@ activate_when:
 - `Narrator` 在组装 prompt 时，调用 `ContentLoader.resolve()` 获取当前条件下的房间/NPC 描述
 - `Renderer` 可以解析 Markdown 的部分语法（粗体 -> Rich 加粗，`---` -> 分隔线）
 - 向后兼容：没有 `content/` 目录时退回到 YAML 内联描述
+
+### 测试策略
+
+```python
+def test_content_loader_resolves_default_variant():
+    loader = ContentLoader()
+    loader.load_directory(Path("test_content/"))
+    # 无条件匹配时返回默认正文
+    state = make_state(events=[])
+    assert "宽敞的酒馆大厅" in loader.resolve("tavern_hall", state)
+
+def test_content_loader_resolves_conditional_variant():
+    loader = ContentLoader()
+    loader.load_directory(Path("test_content/"))
+    state = make_state(events=["cellar_secret_revealed"])
+    assert "格林擦杯子" in loader.resolve("tavern_hall", state)
+
+def test_variant_file_naming_convention():
+    # tavern_hall.night.md 自动关联到 tavern_hall 的 night 变体
+    loader = ContentLoader()
+    loader.load_directory(Path("test_content/"))
+    entry = loader._entries["tavern_hall"]
+    assert "night" in entry.variants
+```
 
 ### 模组支持（远期）
 
@@ -606,6 +663,8 @@ _ACTION_HANDLERS: dict[ActionType, _Handler] = {
 - hint 系统无法自动发现"当前可用的 actions"
 
 ### 目标设计
+
+**关键契约：handler 是纯函数，不 commit 状态。** handler 接收 `(ActionRequest, WorldState)` 返回 `(ActionResult, StateDiff | None)`，由调用方（GameLoop 通过 FSM SideEffect `APPLY_DIFF`）负责 commit。这保证 handler 可测试、可组合，且与 §5 响应式 Store 的 `on_change` 不冲突。
 
 ```python
 @dataclass(frozen=True)
@@ -745,6 +804,27 @@ class WorldState:
 ```
 
 这些属性是只读的、从现有数据派生的，不影响 frozen 不可变性。
+
+### 测试策略
+
+handler 是纯函数，天然可测试——构造 WorldState，传入 ActionRequest，断言返回的 (ActionResult, StateDiff)：
+
+```python
+def test_move_action_available_only_when_exits_exist():
+    state_with_exits = make_state(exits=["north_room"])
+    state_no_exits = make_state(exits=[])
+    assert move_action.is_available(state_with_exits) is True
+    assert move_action.is_available(state_no_exits) is False
+
+def test_take_returns_diff_without_committing():
+    state = make_state(location_items=["sword"])
+    request = ActionRequest(action=ActionType.TAKE, target="sword")
+    result, diff = take_action.handler(request, state)
+    assert result.success is True
+    assert "sword" in diff.removed_items
+    # 原始 state 未变（handler 不 commit）
+    assert "sword" in state.items_at(state.player_location)
+```
 
 ---
 
@@ -990,6 +1070,9 @@ async def handle_command(self, raw: str, mode: GameMode, ctx: CommandContext):
         return
     if mode not in cmd.available_in:
         await ctx.renderer.render_error(f"当前模式下不可用: {cmd_name}")
+        return
+    if not cmd.is_available(ctx.state_manager.state):
+        await ctx.renderer.render_error(f"当前无法执行: {cmd_name}")
         return
     await cmd.execute(args, ctx)
 ```
@@ -1353,13 +1436,110 @@ _DECAY_RATE: dict[MemoryType, float] = {
 | RELATIONSHIP | 信任变化、重要对话 | 保留最近 + importance >= 5 | 中 |
 | DISCOVERY | 搜索结果、环境细节 | 只保留最近 10 条 | 低 |
 
+### 记忆写入的触发机制
+
+EventTimeline 产生事件 → **MemoryExtractor** 从事件中提取分类记忆 → 写入 ClassifiedMemorySystem。
+
+MemoryExtractor 使用**规则匹配**（不用 LLM），通过事件类型到记忆类型的映射表决定分类和重要性：
+
+```python
+@dataclass(frozen=True)
+class MemoryExtractionRule:
+    event_type_pattern: str     # 正则匹配事件类型，如 "dialogue_summary_.*"
+    memory_type: MemoryType
+    importance_fn: Callable[[Event], int]  # 从事件内容计算重要性
+    content_fn: Callable[[Event], str]     # 从事件提取记忆文本
+
+# 规则表：事件类型 → 记忆分类
+EXTRACTION_RULES: list[MemoryExtractionRule] = [
+    # 对话摘要中提到的世界设定 → LORE
+    MemoryExtractionRule(
+        event_type_pattern=r"dialogue_summary_.*",
+        memory_type=MemoryType.LORE,
+        importance_fn=lambda e: 8 if e.data.get("has_secret") else 4,
+        content_fn=lambda e: e.data["summary_text"],
+    ),
+    # 任务状态变更 → QUEST
+    MemoryExtractionRule(
+        event_type_pattern=r"quest_.*",
+        memory_type=MemoryType.QUEST,
+        importance_fn=lambda e: 7,
+        content_fn=lambda e: f"任务 {e.data['quest_id']}: {e.data['status']}",
+    ),
+    # 关系变化 → RELATIONSHIP
+    MemoryExtractionRule(
+        event_type_pattern=r"relationship_changed",
+        memory_type=MemoryType.RELATIONSHIP,
+        importance_fn=lambda e: 6 if abs(e.data["delta"]) >= 10 else 3,
+        content_fn=lambda e: f"{e.data['npc_name']} 信任度 {e.data['delta']:+d}",
+    ),
+    # 搜索、查看结果 → DISCOVERY
+    MemoryExtractionRule(
+        event_type_pattern=r"search|look_detail",
+        memory_type=MemoryType.DISCOVERY,
+        importance_fn=lambda e: 2,
+        content_fn=lambda e: e.data.get("description", ""),
+    ),
+]
+
+class MemoryExtractor:
+    def __init__(self, rules: list[MemoryExtractionRule]):
+        self._rules = [(re.compile(r.event_type_pattern), r) for r in rules]
+
+    def extract(self, event: Event, turn: int) -> MemoryEntry | None:
+        for pattern, rule in self._rules:
+            if pattern.match(event.event_type):
+                return MemoryEntry(
+                    id=f"mem_{event.id}",
+                    memory_type=rule.memory_type,
+                    content=rule.content_fn(event),
+                    importance=rule.importance_fn(event),
+                    created_turn=turn,
+                    last_relevant_turn=turn,
+                )
+        return None  # 不是所有事件都产生记忆
+```
+
+关键设计决策：
+- **不用 LLM 分类**——事件类型是引擎已知的结构化数据，用规则匹配足够可靠且零延迟
+- **importance 由事件内容决定**——对话中含秘密（`has_secret`）比闲聊重要，大幅关系变化比小波动重要
+- **not 所有事件都产生记忆**——无匹配规则的事件只留在 EventTimeline 中，不进入分类记忆
+
+MemoryExtractor 在 `on_change` 中被调用：新事件产生时遍历 diff 中的 events，提取记忆并 add 到 ClassifiedMemorySystem。
+
 ### 与现有代码的集成
 
 - `MemorySystem.build_context()` 替换为 `ClassifiedMemorySystem.build_context()`
-- `EventTimeline` 仍然保留（完整事件流），但 `ClassifiedMemorySystem` 从中提取分类摘要
+- `EventTimeline` 仍然保留（完整事件流），`MemoryExtractor` 从新事件中提取分类记忆
 - `RelationshipGraph` 的变更事件自动写入 RELATIONSHIP 类型
 - `StoryEngine` 触发节点时自动写入 QUEST 类型
 - `SkillManager` 的知识注入归入 LORE 类型
+
+### 测试策略
+
+```python
+def test_dialogue_with_secret_produces_lore_memory():
+    event = Event(id="e1", event_type="dialogue_summary_bartender",
+                  data={"summary_text": "格林透露了地窖的秘密", "has_secret": True})
+    extractor = MemoryExtractor(EXTRACTION_RULES)
+    memory = extractor.extract(event, turn=5)
+    assert memory.memory_type == MemoryType.LORE
+    assert memory.importance == 8
+
+def test_search_produces_low_importance_discovery():
+    event = Event(id="e2", event_type="search",
+                  data={"description": "桌子下面什么也没有"})
+    extractor = MemoryExtractor(EXTRACTION_RULES)
+    memory = extractor.extract(event, turn=5)
+    assert memory.memory_type == MemoryType.DISCOVERY
+    assert memory.importance == 2
+
+def test_lore_decays_slowly():
+    system = ClassifiedMemorySystem(MemoryBudget())
+    entry = MemoryEntry("m1", MemoryType.LORE, "秘密", 8, 1, 1)
+    score = system._recency_score(entry, current_turn=100)
+    assert score > 0.4  # 99 turns 后 LORE 权重仍较高
+```
 
 ---
 
@@ -1527,16 +1707,54 @@ def on_state_change(old: WorldState, new: WorldState):
 ## 依赖关系
 
 ```
-#1 FSM ──────────┐
-                  ├──> #2 快捷键（依赖模式上下文）
-#6 命令注册表 ───┘
-                  ├──> #4 Action 工厂（依赖 FSM 中的模式）
+#6 命令注册表 ───> #1 FSM（FSM 的命令分发依赖 registry）
+#1 FSM ──────────> #2 快捷键（依赖 GameMode 枚举）
+#1 FSM ──────────> #4 Action 工厂（handler 返回 diff，FSM 负责 commit）
 
 #5 响应式 Store ──┬──> #10 场景缓存（依赖 onChange 失效）
-                  └──> #8 游戏日志（依赖 onChange 触发记录）
+                  ├──> #8 游戏日志（依赖 onChange 触发记录）
+                  └──> #9 分类记忆（MemoryExtractor 在 onChange 中提取记忆）
 
 #3 Markdown 内容 ─┬──> #10 场景缓存（ContentLoader 是缓存数据源）
-                  └──> #9 分类记忆（内容文件中的 LORE 归入记忆）
+                  └──> story_conditions.py（条件求值器复用）
 
 #7 种子生成器 ────────> 独立，无依赖
 ```
+
+---
+
+## 跨模块错误处理原则
+
+所有 10 个模块遵循统一的错误处理约定：
+
+**核心规则：handler/callback 抛异常时不崩溃主循环。**
+
+```python
+# GameLoop.run() 中
+async def run(self):
+    while True:
+        try:
+            handler = self._handlers[self._current_mode]
+            raw = await self.renderer.get_input(handler.get_prompt_config(state))
+            result = await handler.handle_input(raw, state, context)
+            for effect in result.side_effects:
+                await self._execute_effect(effect)
+            if result.next_mode is not None:
+                self._current_mode = result.next_mode
+        except KeyboardInterrupt:
+            break
+        except Exception as e:
+            self.logger.log(GameLogEntry(..., entry_type="error", data={"error": str(e)}))
+            await self.renderer.render_error(f"内部错误: {e}")
+            # 不回滚状态——append-only 语义，已提交的变更保留
+```
+
+各模块的具体行为：
+
+| 场景 | 处理方式 |
+|------|---------|
+| §1 handler 抛异常 | GameLoop 捕获，render_error，保持当前模式 |
+| §4 action handler 抛异常 | ActionRegistry.validate_and_execute 捕获，返回 ActionResult(success=False) |
+| §5 on_change 回调抛异常 | fire-and-forget task 的异常被 asyncio 捕获并记录到 GameLogger，状态变更已提交不回滚 |
+| §6 command execute 抛异常 | handle_command 捕获，render_error |
+| §8 GameLogger.flush 失败 | 静默重试一次，仍失败则丢弃该批次（日志丢失可接受，不影响游戏） |
