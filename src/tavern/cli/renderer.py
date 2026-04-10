@@ -9,6 +9,7 @@ from pathlib import Path
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.shortcuts import CompleteStyle
+from prompt_toolkit.styles import Style as PTKStyle
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit import Application
@@ -149,7 +150,10 @@ class ContextualCompleter(Completer):
             for cmd, desc in _COMMAND_COMPLETIONS:
                 if cmd.startswith(prefix):
                     yield Completion(
-                        cmd, start_position=-len(prefix), display_meta=desc
+                        cmd,
+                        start_position=-len(prefix),
+                        display=f"/{cmd}",
+                        display_meta=desc,
                     )
             return
 
@@ -212,6 +216,15 @@ class Renderer:
             completer=ContextualCompleter(state_provider=state_provider),
             complete_style=CompleteStyle.COLUMN,
             complete_while_typing=True,
+            style=PTKStyle.from_dict({
+                "completion-menu": "bg:#1a1a2e",
+                "completion-menu.completion": "fg:#e0e0e0 bg:#1a1a2e",
+                "completion-menu.completion.current": "fg:#ffffff bg:#16213e bold",
+                "completion-menu.meta.completion": "fg:#888888 bg:#1a1a2e",
+                "completion-menu.meta.completion.current": "fg:#aaaaff bg:#16213e",
+                "scrollbar.background": "bg:#1a1a2e",
+                "scrollbar.button": "bg:#333355",
+            }),
         )
 
     def _highlight_entities(self, text: str) -> str:
