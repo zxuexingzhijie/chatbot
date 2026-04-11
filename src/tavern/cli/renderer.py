@@ -21,6 +21,7 @@ from rich.table import Table
 
 from tavern.dialogue.context import DialogueContext, DialogueResponse, DialogueSummary
 from tavern.engine.actions import ActionType
+from tavern.engine.fsm import PromptConfig
 from tavern.world.memory import Relationship
 from tavern.world.models import ActionResult, CharacterRole
 from tavern.world.persistence import SaveInfo
@@ -436,9 +437,20 @@ class Renderer:
             table.add_row(s.slot, s.timestamp, str(s.path))
         self.console.print(table)
 
-    async def get_input(self) -> str:
+    async def get_input(
+        self,
+        config: PromptConfig | None = None,
+        extra_bindings: KeyBindings | None = None,
+    ) -> str:
+        prompt_text = config.prompt_text if config else "▸ "
+        prompt_html = HTML(f"<ansigreen><b>{prompt_text} </b></ansigreen>")
         try:
-            return (await self._session.prompt_async(HTML("<ansigreen><b>▸ </b></ansigreen>"))).strip()
+            session_kwargs: dict = {}
+            if extra_bindings is not None:
+                from prompt_toolkit.key_binding import merge_key_bindings
+                merged = merge_key_bindings([self._session.key_bindings or KeyBindings(), extra_bindings])
+                session_kwargs["key_bindings"] = merged
+            return (await self._session.prompt_async(prompt_html, **session_kwargs)).strip()
         except (EOFError, KeyboardInterrupt):
             return "/quit"
 
