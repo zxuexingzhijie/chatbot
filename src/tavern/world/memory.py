@@ -173,15 +173,18 @@ class RelationshipGraph:
         }
 
 
-class MemorySystem:
+class _LegacyMemorySystem:
+    """Original MemorySystem kept for reference. Not used at runtime."""
+
     def __init__(self, state: WorldState, skills_dir: Path | None = None) -> None:
-        from tavern.world.skills import SkillManager  # lazy to avoid circular
+        from tavern.world.skills import SkillManager
+
         self._timeline = EventTimeline(state.timeline)
         try:
             snapshot = dict(state.relationships_snapshot) if state.relationships_snapshot else None
             self._relationship_graph = RelationshipGraph(snapshot=snapshot)
         except Exception:
-            logger.warning("MemorySystem: failed to restore RelationshipGraph, using empty")
+            logger.warning("_LegacyMemorySystem: failed to restore RelationshipGraph, using empty")
             self._relationship_graph = RelationshipGraph()
         self._skill_manager = SkillManager()
         if skills_dir is not None:
@@ -199,10 +202,7 @@ class MemorySystem:
         self._timeline = EventTimeline(new_state.timeline)
 
     def build_context(
-        self,
-        actor: str,
-        state: WorldState,
-        max_tokens: int = 2000,
+        self, actor: str, state: WorldState, max_tokens: int = 2000,
     ) -> MemoryContext:
         recent_events = self._timeline.summarize()
         relationship_summary = self._relationship_graph.describe_for_prompt(actor)
@@ -225,3 +225,160 @@ class MemorySystem:
     def sync_to_state(self, state: WorldState) -> WorldState:
         snapshot = self._relationship_graph.to_snapshot()
         return state.model_copy(update={"relationships_snapshot": snapshot})
+
+
+_DECAY_RATES: dict[MemoryType, float] = {
+    MemoryType.LORE: 0.01,
+    MemoryType.QUEST: 0.05,
+    MemoryType.RELATIONSHIP: 0.08,
+    MemoryType.DISCOVERY: 0.2,
+}
+
+
+class ClassifiedMemorySystem:
+    def __init__(
+        self,
+        state: WorldState,
+        skills_dir: Path | None = None,
+        budget: MemoryBudget | None = None,
+    ) -> None:
+        from tavern.world.skills import SkillManager
+
+        self._timeline = EventTimeline(state.timeline)
+        try:
+            snapshot = dict(state.relationships_snapshot) if state.relationships_snapshot else None
+            self._relationship_graph = RelationshipGraph(snapshot=snapshot)
+        except Exception:
+            logger.warning("ClassifiedMemorySystem: failed to restore RelationshipGraph, using empty")
+            self._relationship_graph = RelationshipGraph()
+        self._skill_manager = SkillManager()
+        if skills_dir is not None:
+            self._skill_manager.load_skills(skills_dir)
+        self._budget = budget if budget is not None else MemoryBudget()
+        self._classified: dict[MemoryType, list[MemoryEntry]] = {
+            mt: [] for mt in MemoryType
+        }
+
+    @property
+    def timeline(self) -> EventTimeline:
+        return self._timeline
+
+    @property
+    def relationship_graph(self) -> RelationshipGraph:
+        return self._relationship_graph
+
+    def add_memory(self, entry: MemoryEntry) -> None:
+        self._classified[entry.memory_type].append(entry)
+
+    def _recency_score(self, entry: MemoryEntry, current_turn: int) -> float:
+        age = max(0, current_turn - entry.created_turn)
+        decay_rate = _DECAY_RATES.get(entry.memory_type, 0.1)
+        return 1.0 / (1.0 + age * decay_rate)
+
+    def _truncate_to_budget(self, entries: list[MemoryEntry], budget_chars: int) -> str:
+        if not entries:
+            return ""
+        parts: list[str] = []
+        total = 0
+        for entry in entries:
+            if total + len(entry.content) > budget_chars and total > 0:
+                break
+            parts.append(entry.content)
+            total += len(entry.content)
+        return "\n".join(parts)
+
+    def apply_diff(self, diff: StateDiff, new_state: WorldState) -> None:
+        for change in diff.relationship_changes:
+            if isinstance(change, dict):
+                delta = RelationshipDelta(
+                    src=change["src"], tgt=change["tgt"], delta=change["delta"]
+                )
+            else:
+                delta = change
+            self._relationship_graph.update(delta)
+        self._timeline = EventTimeline(new_state.timeline)
+
+    def build_context(
+        self,
+        actor: str,
+        state: WorldState,
+        max_tokens: int = 2000,
+    ) -> MemoryContext:
+        current_turn = getattr(state, "turn", 0)
+
+        recent_events = self._timeline.summarize()
+        relationship_summary = self._relationship_graph.describe_for_prompt(actor)
+        max_chars = max(100, max_tokens * 3 // 4)
+        active_skills = self._skill_manager.get_active_skills(
+            actor, state, self._timeline, self._relationship_graph
+        )
+        active_skills_text = self._skill_manager.inject_to_prompt(
+            active_skills, max_chars=max_chars
+        )
+
+        lore_entries = sorted(
+            self._classified[MemoryType.LORE],
+            key=lambda e: self._recency_score(e, current_turn),
+            reverse=True,
+        )
+        lore_text = self._truncate_to_budget(lore_entries, self._budget.lore)
+        if lore_text:
+            active_skills_text = (
+                f"{active_skills_text}\n{lore_text}" if active_skills_text else lore_text
+            )
+
+        quest_entries = sorted(
+            self._classified[MemoryType.QUEST],
+            key=lambda e: self._recency_score(e, current_turn),
+            reverse=True,
+        )
+        quest_text = self._truncate_to_budget(quest_entries, self._budget.quest)
+
+        discovery_entries = sorted(
+            self._classified[MemoryType.DISCOVERY],
+            key=lambda e: self._recency_score(e, current_turn),
+            reverse=True,
+        )
+        discovery_text = self._truncate_to_budget(discovery_entries, self._budget.discovery)
+
+        extra_events_parts = [p for p in (quest_text, discovery_text) if p]
+        if extra_events_parts:
+            extra = "\n".join(extra_events_parts)
+            recent_events = f"{recent_events}\n{extra}" if recent_events else extra
+
+        rel_entries = sorted(
+            self._classified[MemoryType.RELATIONSHIP],
+            key=lambda e: self._recency_score(e, current_turn),
+            reverse=True,
+        )
+        rel_text = self._truncate_to_budget(rel_entries, self._budget.relationship)
+        if rel_text:
+            relationship_summary = (
+                f"{relationship_summary}\n{rel_text}" if relationship_summary else rel_text
+            )
+
+        return MemoryContext(
+            recent_events=recent_events,
+            relationship_summary=relationship_summary,
+            active_skills_text=active_skills_text,
+        )
+
+    def get_player_relationships(self, player_id: str = "player") -> list[Relationship]:
+        return self._relationship_graph.get_all_for(player_id)
+
+    def sync_to_state(self, state: WorldState) -> WorldState:
+        snapshot = self._relationship_graph.to_snapshot()
+        return state.model_copy(update={"relationships_snapshot": snapshot})
+
+    def rebuild(self, state: WorldState) -> None:
+        self._timeline = EventTimeline(state.timeline)
+        try:
+            snapshot = dict(state.relationships_snapshot) if state.relationships_snapshot else None
+            self._relationship_graph = RelationshipGraph(snapshot=snapshot)
+        except Exception:
+            logger.warning("ClassifiedMemorySystem.rebuild: failed to restore RelationshipGraph")
+            self._relationship_graph = RelationshipGraph()
+        self._classified = {mt: [] for mt in MemoryType}
+
+
+MemorySystem = ClassifiedMemorySystem

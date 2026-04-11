@@ -94,8 +94,8 @@ class ExploringModeHandler:
             story_results = context.story_engine.check(
                 state,
                 "passive",
-                context.memory._timeline if hasattr(context.memory, "_timeline") else (),
-                context.memory._relationship_graph if hasattr(context.memory, "_relationship_graph") else {},
+                context.memory.timeline if hasattr(context.memory, "timeline") else (),
+                context.memory.relationship_graph if hasattr(context.memory, "relationship_graph") else {},
             ) or []
         for sr in story_results:
             effects.append(SideEffect(
