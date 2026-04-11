@@ -65,6 +65,8 @@ _TYPEWRITER_CHAR_DELAY: float = 0.03
 _CARD_MIN_WIDTH: int = 20
 _CARD_MAX_WIDTH: int = 40
 
+_LIVE_REFRESH_RATE: int = 15
+
 
 def _display_width(text: str) -> int:
     import unicodedata
@@ -292,27 +294,36 @@ class Renderer:
         self.console.print(f"\n{prefix}{result.message}\n", style=style)
 
     async def render_stream(self, stream, *, atmosphere: str = "neutral") -> None:
+        from rich.live import Live
+        from rich.markdown import Markdown
+        from rich.styled import Styled
+
         style = _ATMOSPHERE_STYLES.get(atmosphere, _ATMOSPHERE_STYLES["neutral"])
         self.console.print()
-        accumulated = ""
+        buffer = ""
         try:
-            async for chunk in stream:
-                accumulated += chunk
-                self.console.print(f"[{style}]{chunk}[/]", end="", highlight=False)
-                self.console.file.flush()
+            with Live(
+                Styled(Markdown(""), style=style),
+                console=self.console,
+                refresh_per_second=_LIVE_REFRESH_RATE,
+                vertical_overflow="visible",
+            ) as live:
+                async for chunk in stream:
+                    buffer += chunk
+                    live.update(Styled(Markdown(buffer), style=style))
 
-                if self._typewriter_effect:
-                    stripped = chunk.rstrip()
-                    if stripped:
-                        last_char = stripped[-1]
-                        if last_char in _TYPEWRITER_PAUSES:
-                            await asyncio.sleep(_TYPEWRITER_PAUSES[last_char])
-                    if accumulated.endswith("\n\n"):
-                        await asyncio.sleep(_TYPEWRITER_PAUSES["\n\n"])
+                    if self._typewriter_effect:
+                        stripped = chunk.rstrip()
+                        if stripped:
+                            last_char = stripped[-1]
+                            if last_char in _TYPEWRITER_PAUSES:
+                                await asyncio.sleep(_TYPEWRITER_PAUSES[last_char])
+                        if buffer.endswith("\n\n"):
+                            await asyncio.sleep(_TYPEWRITER_PAUSES["\n\n"])
         except Exception as exc:
             logger.warning("render_stream interrupted: %s", exc)
 
-        self.console.print("\n")
+        self.console.print()
 
     def render_inventory(self, state: WorldState) -> None:
         player = state.characters[state.player_id]
@@ -399,7 +410,10 @@ class Renderer:
             )
         )
         location = state.locations[state.characters[state.player_id].location_id]
-        self.console.print(f"\n{location.description}\n")
+        from rich.markdown import Markdown
+        self.console.print()
+        self.console.print(Markdown(location.description))
+        self.console.print()
 
     def render_help(self) -> None:
         self.console.print("\n[bold]系统命令:[/]")
@@ -637,3 +651,8 @@ class Renderer:
             return (await self._session.prompt_async(HTML("<ansicyan><b>对话▸ </b></ansicyan>"))).strip()
         except (EOFError, KeyboardInterrupt):
             return "bye"
+
+
+def render_markdown_text(console: Console, text: str) -> None:
+    from rich.markdown import Markdown
+    console.print(Markdown(text))
