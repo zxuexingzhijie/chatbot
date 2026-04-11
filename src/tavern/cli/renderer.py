@@ -39,6 +39,7 @@ _COMMAND_COMPLETIONS: list[tuple[str, str]] = [
     ("load", "读档"),
     ("saves", "列出所有存档"),
     ("continue", "推进剧情"),
+    ("journal", "查看冒险日志"),
     ("help", "显示帮助"),
     ("quit", "退出游戏"),
 ]
@@ -122,21 +123,6 @@ def _card_style():
         "card.selected": "bold",
         "card.nav": "ansigray",
     })
-
-
-class SlashCommandCompleter(Completer):
-    def get_completions(self, document, complete_event):
-        text = document.text_before_cursor
-        if not text.startswith("/"):
-            return
-        prefix = text[1:]
-        for cmd, desc in _COMMAND_COMPLETIONS:
-            if cmd.startswith(prefix):
-                yield Completion(
-                    cmd,
-                    start_position=-len(prefix),
-                    display_meta=desc,
-                )
 
 
 class ContextualCompleter(Completer):
@@ -296,7 +282,8 @@ class Renderer:
             style = "red"
             prefix = "[bold red]✗[/] "
 
-        self.console.print(f"\n{prefix}{result.message}\n", style=style)
+        msg = self._highlight_entities(result.message)
+        self.console.print(f"\n{prefix}{msg}\n", style=style)
 
     async def render_error(self, message: str) -> None:
         self.console.print(f"\n[bold red]✗[/] {message}\n", style="red")
@@ -505,7 +492,7 @@ class Renderer:
         except (EOFError, KeyboardInterrupt):
             return "/quit"
 
-    async def get_input_with_card_hints(self, hints: list[str]) -> str:
+    async def get_input_with_card_hints(self, hints: list[str], extra_bindings: KeyBindings | None = None) -> str:
         if not hints:
             return await self.get_input()
 
@@ -569,9 +556,14 @@ class Renderer:
         layout = Layout(Window(content=control, dont_extend_height=True))
         style = _card_style()
 
+        final_bindings = bindings
+        if extra_bindings is not None:
+            from prompt_toolkit.key_binding import merge_key_bindings
+            final_bindings = merge_key_bindings([bindings, extra_bindings])
+
         app: Application[str] = Application(
             layout=layout,
-            key_bindings=bindings,
+            key_bindings=final_bindings,
             style=style,
             full_screen=False,
         )
@@ -605,23 +597,6 @@ class Renderer:
             elif self._typewriter_effect:
                 await asyncio.sleep(_TYPEWRITER_CHAR_DELAY)
         self.console.print()
-
-    def render_dialogue(self, response: DialogueResponse) -> None:
-        delta = response.trust_delta
-        if delta > 0:
-            delta_str = f"[green]+{delta}[/]"
-        elif delta < 0:
-            delta_str = f"[red]{delta}[/]"
-        else:
-            delta_str = "[dim]±0[/]"
-
-        self.console.print(
-            Panel(
-                f"{response.text}\n\n"
-                f"[dim]情绪: {response.mood}  关系变化: {delta_str}[/]",
-                border_style="cyan",
-            )
-        )
 
     async def render_dialogue_with_typewriter(
         self, npc_name: str, response: DialogueResponse

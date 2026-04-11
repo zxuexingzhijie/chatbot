@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from types import MappingProxyType
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -70,10 +70,11 @@ class TestExecApplyDiff:
 
 
 class TestExecStartDialogue:
-    async def test_raises_on_unknown_npc(self):
+    async def test_renders_error_on_unknown_npc(self):
         ctx = _make_ctx(characters={})
-        with pytest.raises(ValueError, match="NPC not found"):
-            await exec_start_dialogue({"npc_id": "grim"}, ctx)
+        ctx.renderer.render_error = AsyncMock()
+        await exec_start_dialogue({"npc_id": "grim"}, ctx)
+        ctx.renderer.render_error.assert_awaited_once_with("找不到NPC: grim")
 
     async def test_calls_dialogue_manager_start(self):
         from unittest.mock import AsyncMock
@@ -161,3 +162,31 @@ class TestExecEmitEvent:
     async def test_skips_when_no_story_engine(self):
         ctx = _make_ctx(story_engine=None)
         await exec_emit_event({"event": "test_event"}, ctx)
+
+
+class TestExecApplyDiffSyncsToState:
+    async def test_exec_apply_diff_calls_sync_to_state(self):
+        ctx = _make_ctx()
+        ctx.memory.sync_to_state = MagicMock(return_value=MagicMock())
+        ctx.state_manager.update_snapshot = MagicMock()
+        diff = StateDiff(turn_increment=1)
+        await exec_apply_diff({"diff": diff, "action": None}, ctx)
+        ctx.memory.sync_to_state.assert_called_once()
+        ctx.state_manager.update_snapshot.assert_called_once()
+
+
+class TestExecApplyTrustSyncsToState:
+    async def test_exec_apply_trust_calls_sync_to_state(self):
+        npc = Character(
+            id="grim",
+            name="Grim",
+            role=CharacterRole.NPC,
+            location_id="tavern",
+            stats={"trust": 10},
+        )
+        ctx = _make_ctx(characters={"grim": npc})
+        ctx.memory.sync_to_state = MagicMock(return_value=MagicMock())
+        ctx.state_manager.update_snapshot = MagicMock()
+        await exec_apply_trust({"npc_id": "grim", "delta": 5}, ctx)
+        ctx.memory.sync_to_state.assert_called_once()
+        ctx.state_manager.update_snapshot.assert_called_once()

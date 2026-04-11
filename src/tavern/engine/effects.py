@@ -40,7 +40,9 @@ async def exec_start_dialogue(payload: dict, ctx: ModeContext) -> None:
     state = ctx.state_manager.state
     npc = state.characters.get(npc_id)
     if npc is None:
-        raise ValueError(f"NPC not found: {npc_id}")
+        logger.warning("NPC not found: %s", npc_id)
+        await ctx.renderer.render_error(f"找不到NPC: {npc_id}")
+        return
     memory_ctx = None
     if hasattr(ctx.memory, "build_context"):
         memory_ctx = ctx.memory.build_context(actor=npc_id, state=state)
@@ -65,6 +67,9 @@ async def exec_apply_diff(payload: dict, ctx: ModeContext) -> None:
     new_state = ctx.state_manager.commit(diff, action)
     if hasattr(ctx.memory, "apply_diff"):
         ctx.memory.apply_diff(diff, new_state)
+    if hasattr(ctx.memory, "sync_to_state") and hasattr(ctx.state_manager, "update_snapshot"):
+        synced = ctx.memory.sync_to_state(new_state)
+        ctx.state_manager.update_snapshot(synced)
     _render_quest_notifications(diff, old_state, ctx)
 
 
@@ -104,19 +109,10 @@ async def exec_apply_trust(payload: dict, ctx: ModeContext) -> None:
     new_state = ctx.state_manager.commit(trust_diff, None)
     if hasattr(ctx.memory, "apply_diff"):
         ctx.memory.apply_diff(trust_diff, new_state)
+    if hasattr(ctx.memory, "sync_to_state") and hasattr(ctx.state_manager, "update_snapshot"):
+        synced = ctx.memory.sync_to_state(new_state)
+        ctx.state_manager.update_snapshot(synced)
     logger.info("Applied trust delta %+d to %s (now %d)", delta, npc_id, new_trust)
-
-
-async def exec_init_combat(payload: dict, ctx: ModeContext) -> None:
-    logger.info("Initializing combat: %s", payload)
-
-
-async def exec_apply_rewards(payload: dict, ctx: ModeContext) -> None:
-    logger.info("Applying rewards: %s", payload)
-
-
-async def exec_flee_penalty(payload: dict, ctx: ModeContext) -> None:
-    logger.info("Applying flee penalty: %s", payload)
 
 
 async def exec_open_shop(payload: dict, ctx: ModeContext) -> None:
@@ -129,8 +125,5 @@ EFFECT_EXECUTORS: dict[EffectKind, EffectExecutor] = {
     EffectKind.APPLY_DIFF: exec_apply_diff,
     EffectKind.EMIT_EVENT: exec_emit_event,
     EffectKind.APPLY_TRUST: exec_apply_trust,
-    EffectKind.INIT_COMBAT: exec_init_combat,
-    EffectKind.APPLY_REWARDS: exec_apply_rewards,
-    EffectKind.FLEE_PENALTY: exec_flee_penalty,
     EffectKind.OPEN_SHOP: exec_open_shop,
 }

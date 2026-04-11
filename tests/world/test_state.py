@@ -209,3 +209,36 @@ class TestEndingsReached:
         diff = StateDiff(turn_increment=1)
         new_state = sample_world_state.apply(diff)
         assert new_state.endings_reached == ()
+
+
+class TestApplyDoesNotMutateRelationships:
+    def test_apply_does_not_mutate_relationships_snapshot(self, sample_world_state):
+        diff = StateDiff(
+            relationship_changes=(
+                {"src": "player", "tgt": "bartender_grim", "delta": 10},
+            ),
+            turn_increment=1,
+        )
+        new_state = sample_world_state.apply(diff)
+        assert new_state.relationships_snapshot == sample_world_state.relationships_snapshot
+
+
+class TestUpdateSnapshot:
+    def test_update_snapshot_replaces_state_preserving_history(self, sample_world_state):
+        mgr = StateManager(initial_state=sample_world_state)
+        diff = StateDiff(turn_increment=1)
+        action = ActionResult(
+            success=True, action=ActionType.LOOK, message="看"
+        )
+        mgr.commit(diff, action)
+        assert mgr.current.turn == 1
+
+        replacement = mgr.current.model_copy(
+            update={"relationships_snapshot": {"links": [], "nodes": [], "directed": True, "multigraph": False, "graph": {}}}
+        )
+        mgr.update_snapshot(replacement)
+        assert mgr.current.relationships_snapshot is not sample_world_state.relationships_snapshot
+
+        restored = mgr.undo()
+        assert restored is not None
+        assert restored.turn == 0

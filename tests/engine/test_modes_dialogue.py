@@ -8,7 +8,6 @@ from tavern.dialogue.context import DialogueContext, DialogueResponse, DialogueS
 from tavern.engine.fsm import (
     EffectKind,
     GameMode,
-    Keybinding,
     ModeContext,
     PromptConfig,
     SideEffect,
@@ -42,7 +41,7 @@ def _make_context(**overrides) -> ModeContext:
 
 def _make_dm(*, active: DialogueContext | None = None) -> AsyncMock:
     dm = AsyncMock()
-    dm._active = active
+    dm.active_context = active
     return dm
 
 
@@ -64,21 +63,11 @@ class TestDialogueModeHandler:
         handler = DialogueModeHandler(dialogue_manager=MagicMock())
         assert handler.mode == GameMode.DIALOGUE
 
-    def test_keybindings_returns_empty_list(self):
-        handler = DialogueModeHandler(dialogue_manager=MagicMock())
-        bindings = handler.get_keybindings()
-        assert bindings == []
-
-    def test_keybindings_have_required_fields(self):
-        handler = DialogueModeHandler(dialogue_manager=MagicMock())
-        assert handler.get_keybindings() == []
-
     def test_get_prompt_config(self):
         handler = DialogueModeHandler(dialogue_manager=MagicMock())
         config = handler.get_prompt_config(_make_state())
         assert isinstance(config, PromptConfig)
         assert config.prompt_text == "对话> "
-        assert config.show_status_bar is False
 
     @pytest.mark.asyncio
     async def test_slash_command_delegates_to_registry(self):

@@ -27,9 +27,6 @@ class EffectKind(Enum):
     APPLY_DIFF = "apply_diff"
     EMIT_EVENT = "emit_event"
     APPLY_TRUST = "apply_trust"
-    INIT_COMBAT = "init_combat"
-    APPLY_REWARDS = "apply_rewards"
-    FLEE_PENALTY = "flee_penalty"
     OPEN_SHOP = "open_shop"
 
 
@@ -48,7 +45,7 @@ class TransitionResult:
 @dataclass(frozen=True)
 class PromptConfig:
     prompt_text: str = "> "
-    show_status_bar: bool = True
+
 
 
 @dataclass(frozen=True)
@@ -86,7 +83,6 @@ class ModeHandler(Protocol):
 
     def get_prompt_config(self, state: WorldState) -> PromptConfig: ...
 
-    def get_keybindings(self) -> list[Keybinding]: ...
 
 
 EffectExecutor = Callable[[dict, ModeContext], Awaitable[None]]
@@ -113,7 +109,11 @@ class GameLoop:
         self._running = True
         while self._running:
             try:
-                handler = self._handlers[self._current_mode]
+                handler = self._handlers.get(self._current_mode)
+                if handler is None:
+                    logger.error("No handler for mode %s, falling back to EXPLORING", self._current_mode)
+                    self._current_mode = GameMode.EXPLORING
+                    handler = self._handlers[GameMode.EXPLORING]
                 state = self._context.state_manager.state
                 bridge = self._context.keybinding_bridge
                 extra_bindings = None
@@ -121,7 +121,7 @@ class GameLoop:
                     extra_bindings = bridge.build_ptk_bindings(self._current_mode)
                 hints = self._collect_hints(state)
                 if hints and hasattr(self._context.renderer, "get_input_with_card_hints"):
-                    raw = await self._context.renderer.get_input_with_card_hints(hints)
+                    raw = await self._context.renderer.get_input_with_card_hints(hints, extra_bindings=extra_bindings)
                 else:
                     raw = await self._context.renderer.get_input(
                     config=handler.get_prompt_config(state),

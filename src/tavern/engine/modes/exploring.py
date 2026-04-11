@@ -6,7 +6,6 @@ from tavern.engine.actions import ActionType
 from tavern.engine.fsm import (
     EffectKind,
     GameMode,
-    Keybinding,
     ModeContext,
     PromptConfig,
     SideEffect,
@@ -191,7 +190,5 @@ class ExploringModeHandler:
         return TransitionResult(next_mode=next_mode, side_effects=tuple(effects))
 
     def get_prompt_config(self, state: WorldState) -> PromptConfig:
-        return PromptConfig(prompt_text="> ", show_status_bar=True)
+        return PromptConfig(prompt_text="> ")
 
-    def get_keybindings(self) -> list[Keybinding]:
-        return []

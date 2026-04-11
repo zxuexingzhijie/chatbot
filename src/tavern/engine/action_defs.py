@@ -17,11 +17,11 @@ Handler = Callable[["ActionRequest", "WorldState"], tuple["ActionResult", "State
 class ActionDef:
     action_type: ActionType
     description: str
-    description_fn: Callable[["WorldState"], str] | None
     valid_targets: Callable[["WorldState"], list[str]]
     is_available: Callable[["WorldState"], bool]
     handler: Handler
     requires_target: bool = True
+    description_fn: Callable[["WorldState"], str] | None = None
     cooldown_turns: int = 0
 
 
@@ -32,12 +32,10 @@ def _default_handler(req: ActionRequest, state: WorldState) -> tuple[ActionResul
 ACTION_DEFAULTS = ActionDef(
     action_type=ActionType.CUSTOM,
     description="自定义动作",
-    description_fn=None,
     valid_targets=lambda s: [],
     is_available=lambda s: True,
     handler=_default_handler,
     requires_target=False,
-    cooldown_turns=0,
 )
 
 

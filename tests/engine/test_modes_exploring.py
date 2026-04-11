@@ -156,17 +156,6 @@ class TestExploringModeHandler:
         handler = ExploringModeHandler()
         config = handler.get_prompt_config(_make_state())
         assert config.prompt_text == "> "
-        assert config.show_status_bar is True
-
-    def test_get_keybindings_returns_list(self):
-        handler = ExploringModeHandler()
-        bindings = handler.get_keybindings()
-        assert isinstance(bindings, list)
-        assert len(bindings) == 0
-
-    def test_keybindings_have_required_fields(self):
-        handler = ExploringModeHandler()
-        assert handler.get_keybindings() == []
 
 
 class TestExploringFreeText:

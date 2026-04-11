@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: tavern-game
-Version: 1.0.0.1
+Version: 1.0.0.4
 Summary: CLI interactive novel game — fantasy tavern exploration
 Requires-Python: >=3.12
 Requires-Dist: pydantic<3.0,>=2.0

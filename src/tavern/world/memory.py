@@ -84,11 +84,11 @@ class EventTimeline:
             result = [e for e in result if e.turn > after_turn]
         return result
 
-    def summarize(self) -> str:
+    def summarize(self, n: int = 5) -> str:
         if not self._events:
             return "（尚无历史事件）"
-        recent = list(self._events[-5:])
-        older_count = max(0, len(self._events) - 5)
+        recent = list(self._events[-n:])
+        older_count = max(0, len(self._events) - n)
         parts: list[str] = []
         if older_count > 0:
             parts.append(f"[已省略{older_count}条早期事件]")
@@ -117,6 +117,10 @@ class RelationshipGraph:
         return Relationship(src=src, tgt=tgt, value=value)
 
     def update(self, delta: RelationshipDelta) -> Relationship:
+        # Mutation exception: RelationshipGraph owns its internal adjacency dict.
+        # It is the single source of truth for relationships; snapshots are
+        # derived via to_snapshot() and sync_to_state(), so in-place mutation
+        # here is safe and intentional.
         current = self._g.get(delta.src, {}).get(delta.tgt, 0)
         new_value = max(-100, min(100, current + delta.delta))
         self._g.setdefault(delta.src, {})[delta.tgt] = new_value
@@ -187,6 +191,7 @@ class ClassifiedMemorySystem:
         state: WorldState,
         skills_dir: Path | None = None,
         budget: MemoryBudget | None = None,
+        extractor: object | None = None,
     ) -> None:
         from tavern.world.skills import SkillManager
 
@@ -204,6 +209,7 @@ class ClassifiedMemorySystem:
         self._classified: dict[MemoryType, list[MemoryEntry]] = {
             mt: [] for mt in MemoryType
         }
+        self._extractor = extractor
 
     @property
     def timeline(self) -> EventTimeline:
@@ -217,21 +223,37 @@ class ClassifiedMemorySystem:
         self._classified[entry.memory_type].append(entry)
 
     def _recency_score(self, entry: MemoryEntry, current_turn: int) -> float:
-        age = max(0, current_turn - entry.created_turn)
+        age = max(0, current_turn - entry.last_relevant_turn)
         decay_rate = _DECAY_RATES.get(entry.memory_type, 0.1)
         return 1.0 / (1.0 + age * decay_rate)
 
-    def _truncate_to_budget(self, entries: list[MemoryEntry], budget_chars: int) -> str:
+    @staticmethod
+    def _refresh_entry(entry: MemoryEntry, current_turn: int) -> MemoryEntry:
+        return MemoryEntry(
+            id=entry.id,
+            memory_type=entry.memory_type,
+            content=entry.content,
+            importance=entry.importance,
+            created_turn=entry.created_turn,
+            last_relevant_turn=current_turn,
+        )
+
+    def _truncate_to_budget(self, entries: list[MemoryEntry], budget_chars: int, current_turn: int | None = None) -> tuple[str, list[MemoryEntry]]:
         if not entries:
-            return ""
+            return "", []
         parts: list[str] = []
+        selected: list[MemoryEntry] = []
         total = 0
         for entry in entries:
             if total + len(entry.content) > budget_chars and total > 0:
                 break
             parts.append(entry.content)
             total += len(entry.content)
-        return "\n".join(parts)
+            if current_turn is not None:
+                selected.append(self._refresh_entry(entry, current_turn))
+            else:
+                selected.append(entry)
+        return "\n".join(parts), selected
 
     def apply_diff(self, diff: StateDiff, new_state: WorldState) -> None:
         for change in diff.relationship_changes:
@@ -243,6 +265,11 @@ class ClassifiedMemorySystem:
                 delta = change
             self._relationship_graph.update(delta)
         self._timeline = EventTimeline(new_state.timeline)
+        if self._extractor is not None:
+            for event in diff.new_events:
+                entry = self._extractor.extract(event, event.turn)
+                if entry is not None:
+                    self.add_memory(entry)
 
     def build_context(
         self,
@@ -267,7 +294,9 @@ class ClassifiedMemorySystem:
             key=lambda e: self._recency_score(e, current_turn),
             reverse=True,
         )
-        lore_text = self._truncate_to_budget(lore_entries, self._budget.lore)
+        lore_text, refreshed_lore = self._truncate_to_budget(lore_entries, self._budget.lore, current_turn)
+        not_selected_lore = lore_entries[len(refreshed_lore):]
+        self._classified[MemoryType.LORE] = refreshed_lore + not_selected_lore
         if lore_text:
             active_skills_text = (
                 f"{active_skills_text}\n{lore_text}" if active_skills_text else lore_text
@@ -278,14 +307,18 @@ class ClassifiedMemorySystem:
             key=lambda e: self._recency_score(e, current_turn),
             reverse=True,
         )
-        quest_text = self._truncate_to_budget(quest_entries, self._budget.quest)
+        quest_text, refreshed_quest = self._truncate_to_budget(quest_entries, self._budget.quest, current_turn)
+        not_selected_quest = quest_entries[len(refreshed_quest):]
+        self._classified[MemoryType.QUEST] = refreshed_quest + not_selected_quest
 
         discovery_entries = sorted(
             self._classified[MemoryType.DISCOVERY],
             key=lambda e: self._recency_score(e, current_turn),
             reverse=True,
         )
-        discovery_text = self._truncate_to_budget(discovery_entries, self._budget.discovery)
+        discovery_text, refreshed_disc = self._truncate_to_budget(discovery_entries, self._budget.discovery, current_turn)
+        not_selected_disc = discovery_entries[len(refreshed_disc):]
+        self._classified[MemoryType.DISCOVERY] = refreshed_disc + not_selected_disc
 
         extra_events_parts = [p for p in (quest_text, discovery_text) if p]
         if extra_events_parts:
@@ -297,7 +330,9 @@ class ClassifiedMemorySystem:
             key=lambda e: self._recency_score(e, current_turn),
             reverse=True,
         )
-        rel_text = self._truncate_to_budget(rel_entries, self._budget.relationship)
+        rel_text, refreshed_rel = self._truncate_to_budget(rel_entries, self._budget.relationship, current_turn)
+        not_selected_rel = rel_entries[len(refreshed_rel):]
+        self._classified[MemoryType.RELATIONSHIP] = refreshed_rel + not_selected_rel
         if rel_text:
             relationship_summary = (
                 f"{relationship_summary}\n{rel_text}" if relationship_summary else rel_text
@@ -312,9 +347,48 @@ class ClassifiedMemorySystem:
     def get_player_relationships(self, player_id: str = "player") -> list[Relationship]:
         return self._relationship_graph.get_all_for(player_id)
 
+    def classified_to_snapshot(self) -> dict:
+        result: dict[str, list[dict]] = {}
+        for mt, entries in self._classified.items():
+            if entries:
+                result[mt.value] = [
+                    {
+                        "id": e.id,
+                        "content": e.content,
+                        "importance": e.importance,
+                        "created_turn": e.created_turn,
+                        "last_relevant_turn": e.last_relevant_turn,
+                    }
+                    for e in entries
+                ]
+        return result
+
+    @staticmethod
+    def _entries_from_snapshot(snapshot: dict) -> dict[MemoryType, list[MemoryEntry]]:
+        classified: dict[MemoryType, list[MemoryEntry]] = {mt: [] for mt in MemoryType}
+        type_map = {mt.value: mt for mt in MemoryType}
+        for type_key, entry_dicts in snapshot.items():
+            mt = type_map.get(type_key)
+            if mt is None:
+                continue
+            for d in entry_dicts:
+                classified[mt].append(MemoryEntry(
+                    id=d["id"],
+                    memory_type=mt,
+                    content=d["content"],
+                    importance=d["importance"],
+                    created_turn=d["created_turn"],
+                    last_relevant_turn=d["last_relevant_turn"],
+                ))
+        return classified
+
     def sync_to_state(self, state: WorldState) -> WorldState:
-        snapshot = self._relationship_graph.to_snapshot()
-        return state.model_copy(update={"relationships_snapshot": snapshot})
+        rel_snapshot = self._relationship_graph.to_snapshot()
+        cls_snapshot = self.classified_to_snapshot()
+        return state.model_copy(update={
+            "relationships_snapshot": rel_snapshot,
+            "classified_memories_snapshot": cls_snapshot,
+        })
 
     def rebuild(self, state: WorldState) -> None:
         self._timeline = EventTimeline(state.timeline)
@@ -324,7 +398,11 @@ class ClassifiedMemorySystem:
         except Exception:
             logger.warning("ClassifiedMemorySystem.rebuild: failed to restore RelationshipGraph")
             self._relationship_graph = RelationshipGraph()
-        self._classified = {mt: [] for mt in MemoryType}
+        cls_snap = dict(state.classified_memories_snapshot) if state.classified_memories_snapshot else {}
+        if cls_snap:
+            self._classified = self._entries_from_snapshot(cls_snap)
+        else:
+            self._classified = {mt: [] for mt in MemoryType}
 
 
 MemorySystem = ClassifiedMemorySystem

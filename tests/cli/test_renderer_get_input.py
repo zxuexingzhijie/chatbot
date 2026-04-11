@@ -30,7 +30,7 @@ async def test_get_input_no_args(renderer):
 @pytest.mark.asyncio
 async def test_get_input_with_prompt_config(renderer):
     """get_input() accepts PromptConfig and uses its prompt_text."""
-    config = PromptConfig(prompt_text="对话> ", show_status_bar=False)
+    config = PromptConfig(prompt_text="对话> ")
     result = await renderer.get_input(config=config)
     assert result == "test input"
     call_args = renderer._session.prompt_async.call_args

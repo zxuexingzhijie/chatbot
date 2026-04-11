@@ -10,8 +10,8 @@ class TestActionType:
         assert ActionType.MOVE == "move"
 
     def test_all_phase1_actions(self):
-        expected = {"move", "look", "search", "talk", "persuade", "trade",
-                    "take", "use", "give", "stealth", "combat", "custom"}
+        expected = {"move", "look", "search", "talk", "persuade",
+                    "take", "use", "custom"}
         actual = {a.value for a in ActionType}
         assert actual == expected
 

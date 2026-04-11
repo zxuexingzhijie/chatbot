@@ -33,6 +33,7 @@ class WorldState(BaseModel):
     characters: dict[str, Character] = {}
     items: dict[str, Item] = {}
     relationships_snapshot: dict = {}
+    classified_memories_snapshot: dict = {}
     quests: dict[str, dict] = {}
     story_active_since: dict[str, int] = {}
     timeline: tuple[Event, ...] = ()
@@ -71,6 +72,7 @@ class WorldState(BaseModel):
             "characters": instance.characters,
             "items": instance.items,
             "relationships_snapshot": instance.relationships_snapshot,
+            "classified_memories_snapshot": instance.classified_memories_snapshot,
             "quests": instance.quests,
             "story_active_since": instance.story_active_since,
         }
@@ -126,21 +128,14 @@ class WorldState(BaseModel):
 
         new_endings_reached = self.endings_reached + diff.new_endings
 
-        new_relationships = dict(self.relationships_snapshot)
-        for change in diff.relationship_changes:
-            src = change.get("src", "")
-            tgt = change.get("tgt", "")
-            delta = change.get("delta", 0)
-            key = f"{src}->{tgt}"
-            new_relationships[key] = new_relationships.get(key, 0) + delta
-
         return WorldState(
             turn=self.turn + diff.turn_increment,
             player_id=self.player_id,
             locations=new_locations,
             characters=new_characters,
             items=new_items,
-            relationships_snapshot=new_relationships,
+            relationships_snapshot=self.relationships_snapshot,
+            classified_memories_snapshot=self.classified_memories_snapshot,
             quests=new_quests,
             story_active_since=new_story_active_since,
             timeline=new_timeline,
@@ -219,6 +214,9 @@ class ReactiveStateManager:
         self._state, self._version = self._future.pop()
         self._notify(old)
         return self._state
+
+    def update_snapshot(self, new_state: WorldState) -> None:
+        self._state = new_state
 
     def replace(self, new_state: WorldState) -> None:
         old = self._state

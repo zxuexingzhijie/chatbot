@@ -27,6 +27,10 @@ class DialogueManager:
     def is_active(self) -> bool:
         return self._active is not None
 
+    @property
+    def active_context(self) -> DialogueContext | None:
+        return self._active
+
     async def start(
         self, state: WorldState, npc_id: str, is_persuade: bool = False,
         memory_ctx: MemoryContext | None = None,

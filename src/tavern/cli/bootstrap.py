@@ -43,7 +43,8 @@ def bootstrap(
         cache=scene_cache,
         state_manager=state_manager,
     )
-    narrator._cached_builder = cached_builder
+    if not hasattr(narrator, '_cached_builder') or narrator._cached_builder is None:
+        narrator._cached_builder = cached_builder
 
     context = ModeContext(
         state_manager=state_manager,

@@ -42,7 +42,6 @@ class TestCommandRegistry:
         r.register(GameCommand(
             name="/debug",
             description="调试",
-            is_hidden=True,
             available_in=(_GameMode.EXPLORING,),
             execute=AsyncMock(),
         ))
@@ -71,13 +70,6 @@ class TestCommandRegistry:
         assert "/look" in names
         assert "/save" not in names
 
-    def test_get_available_excludes_hidden(self):
-        r = self._make_registry()
-        state = _FakeState()
-        available = r.get_available(_GameMode.EXPLORING, state)
-        names = [c.name for c in available]
-        assert "/debug" not in names
-
     def test_get_available_checks_is_available(self):
         r = self._make_registry()
         state = _FakeState(is_in_combat=True)
@@ -91,4 +83,4 @@ class TestCommandRegistry:
         completions = r.get_completions(_GameMode.EXPLORING, state)
         assert "/look" in completions
         assert "/save" in completions
-        assert "/debug" not in completions
+        assert "/debug" in completions

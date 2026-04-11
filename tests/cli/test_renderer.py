@@ -164,11 +164,12 @@ class TestDialogueRenderer:
         output = console.file.getvalue()
         assert "旅行者" in output
 
-    def test_render_dialogue_shows_trust_delta(self):
+    @pytest.mark.asyncio
+    async def test_render_dialogue_shows_trust_delta(self):
         console = Console(file=StringIO(), width=80)
         renderer = Renderer(console=console)
         response = DialogueResponse(text="很高兴认识你", trust_delta=2, mood="开心", wants_to_end=False)
-        renderer.render_dialogue(response)
+        await renderer.render_dialogue_with_typewriter("NPC", response)
         output = console.file.getvalue()
         assert "2" in output
 
@@ -347,22 +348,22 @@ class TestSpinner:
 class TestSlashCommandCompleter:
     def test_completes_slash_commands(self):
         from prompt_toolkit.document import Document
-        from tavern.cli.renderer import SlashCommandCompleter
+        from tavern.cli.renderer import ContextualCompleter
 
-        completer = SlashCommandCompleter()
+        completer = ContextualCompleter()
         doc = Document("/", cursor_position=1)
         completions = list(completer.get_completions(doc, None))
         labels = [c.text for c in completions]
         assert "look" in labels
         assert "quit" in labels
         assert "inventory" in labels
-        assert len(completions) == 11
+        assert len(completions) == 12
 
     def test_filters_by_prefix(self):
         from prompt_toolkit.document import Document
-        from tavern.cli.renderer import SlashCommandCompleter
+        from tavern.cli.renderer import ContextualCompleter
 
-        completer = SlashCommandCompleter()
+        completer = ContextualCompleter()
         doc = Document("/lo", cursor_position=3)
         completions = list(completer.get_completions(doc, None))
         labels = [c.text for c in completions]
@@ -372,18 +373,18 @@ class TestSlashCommandCompleter:
 
     def test_no_completions_without_slash(self):
         from prompt_toolkit.document import Document
-        from tavern.cli.renderer import SlashCommandCompleter
+        from tavern.cli.renderer import ContextualCompleter
 
-        completer = SlashCommandCompleter()
+        completer = ContextualCompleter()
         doc = Document("hello", cursor_position=5)
         completions = list(completer.get_completions(doc, None))
         assert completions == []
 
     def test_completions_have_display_meta(self):
         from prompt_toolkit.document import Document
-        from tavern.cli.renderer import SlashCommandCompleter
+        from tavern.cli.renderer import ContextualCompleter
 
-        completer = SlashCommandCompleter()
+        completer = ContextualCompleter()
         doc = Document("/qu", cursor_position=3)
         completions = list(completer.get_completions(doc, None))
         assert len(completions) == 1

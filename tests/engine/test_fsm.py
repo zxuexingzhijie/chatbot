@@ -35,7 +35,7 @@ class TestSideEffect:
     def test_all_effect_kinds_exist(self):
         expected = {
             "START_DIALOGUE", "END_DIALOGUE", "APPLY_DIFF", "EMIT_EVENT",
-            "APPLY_TRUST", "INIT_COMBAT", "APPLY_REWARDS", "FLEE_PENALTY", "OPEN_SHOP",
+            "APPLY_TRUST", "OPEN_SHOP",
         }
         actual = {k.name for k in EffectKind}
         assert expected == actual

@@ -65,5 +65,4 @@ class TestBuildAction:
 
     def test_build_preserves_defaults_for_unset_fields(self):
         action = build_action(action_type=ActionType.MOVE, description="移动")
-        assert action.cooldown_turns == 0
-        assert action.description_fn is None
+        assert action.requires_target is False

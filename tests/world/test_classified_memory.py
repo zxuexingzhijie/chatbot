@@ -153,6 +153,45 @@ def test_lore_decays_slower_than_discovery():
     assert mem._recency_score(lore, 100) > mem._recency_score(disc, 100)
 
 
+def test_build_context_updates_last_relevant_turn():
+    state = _make_state(turn=10)
+    mem = ClassifiedMemorySystem(state=state)
+    mem.add_memory(MemoryEntry(
+        id="m1", memory_type=MemoryType.LORE,
+        content="古老的秘密", importance=8,
+        created_turn=1, last_relevant_turn=1,
+    ))
+    mem.build_context(actor="player", state=state)
+    entries = mem._classified[MemoryType.LORE]
+    refreshed = [e for e in entries if e.id == "m1"]
+    assert refreshed
+    assert refreshed[0].last_relevant_turn == 10
+
+
+def test_recency_score_uses_last_relevant_turn():
+    state = _make_state(turn=100)
+    mem = ClassifiedMemorySystem(state=state)
+    old = MemoryEntry(id="old", memory_type=MemoryType.LORE, content="x", importance=5, created_turn=1, last_relevant_turn=1)
+    refreshed = MemoryEntry(id="new", memory_type=MemoryType.LORE, content="y", importance=5, created_turn=1, last_relevant_turn=90)
+    assert mem._recency_score(refreshed, 100) > mem._recency_score(old, 100)
+
+
+def test_summarize_custom_n():
+    events = tuple(
+        Event(id=f"e{i}", type="test", description=f"事件{i}", actor="player", turn=i)
+        for i in range(10)
+    )
+    tl = EventTimeline(events)
+    summary_3 = tl.summarize(n=3)
+    assert "事件7" in summary_3
+    assert "事件8" in summary_3
+    assert "事件9" in summary_3
+    assert "已省略7条早期事件" in summary_3
+
+    summary_default = tl.summarize()
+    assert "已省略5条早期事件" in summary_default
+
+
 def test_budget_truncation():
     state = _make_state()
     mem = ClassifiedMemorySystem(state=state, budget=MemoryBudget(discovery=20))
@@ -222,3 +261,121 @@ def test_rebuild_clears_classified():
 def test_backward_compat_alias():
     from tavern.world.memory import MemorySystem
     assert MemorySystem is ClassifiedMemorySystem
+
+
+# --- Phase 2: MemoryExtractor wiring tests ---
+
+from tavern.world.memory_extractor import EXTRACTION_RULES, MemoryExtractor
+
+
+def test_apply_diff_extracts_dialogue_memory():
+    state = _make_state()
+    extractor = MemoryExtractor(EXTRACTION_RULES)
+    mem = ClassifiedMemorySystem(state=state, extractor=extractor)
+    dialogue_event = Event(
+        id="e_dlg", turn=1, type="dialogue_summary_innkeeper",
+        actor="player", description="和旅店老板聊天",
+        data={"has_secret": True, "summary_text": "旅店老板透露了地窖秘密"},
+    )
+    diff = StateDiff(new_events=(dialogue_event,), turn_increment=1)
+    new_state = state.apply(diff)
+    mem.apply_diff(diff, new_state)
+    ctx = mem.build_context(actor="player", state=new_state)
+    assert "旅店老板透露了地窖秘密" in ctx.active_skills_text
+
+
+def test_apply_diff_extracts_quest_memory():
+    state = _make_state()
+    extractor = MemoryExtractor(EXTRACTION_RULES)
+    mem = ClassifiedMemorySystem(state=state, extractor=extractor)
+    quest_event = Event(
+        id="e_q", turn=2, type="quest_started",
+        actor="player", description="任务开始",
+        data={"quest_id": "find_gem", "status": "active"},
+    )
+    diff = StateDiff(new_events=(quest_event,), turn_increment=1)
+    new_state = state.apply(diff)
+    mem.apply_diff(diff, new_state)
+    ctx = mem.build_context(actor="player", state=new_state)
+    assert "find_gem" in ctx.recent_events
+
+
+def test_apply_diff_no_extraction_when_no_extractor():
+    state = _make_state()
+    mem = ClassifiedMemorySystem(state=state)
+    dialogue_event = Event(
+        id="e_dlg2", turn=1, type="dialogue_summary_innkeeper",
+        actor="player", description="和旅店老板聊天",
+        data={"summary_text": "秘密信息"},
+    )
+    diff = StateDiff(new_events=(dialogue_event,), turn_increment=1)
+    new_state = state.apply(diff)
+    mem.apply_diff(diff, new_state)
+    ctx = mem.build_context(actor="player", state=new_state)
+    assert "秘密信息" not in ctx.active_skills_text
+
+
+# --- Phase 3: Classified memory persistence tests ---
+
+
+def test_classified_to_snapshot_round_trip():
+    state = _make_state()
+    mem = ClassifiedMemorySystem(state=state)
+    mem.add_memory(MemoryEntry(
+        id="m1", memory_type=MemoryType.LORE,
+        content="地窖的秘密", importance=8,
+        created_turn=1, last_relevant_turn=1,
+    ))
+    mem.add_memory(MemoryEntry(
+        id="m2", memory_type=MemoryType.QUEST,
+        content="寻找宝石", importance=7,
+        created_turn=2, last_relevant_turn=2,
+    ))
+    snapshot = mem.classified_to_snapshot()
+    restored = ClassifiedMemorySystem._entries_from_snapshot(snapshot)
+    assert len(restored[MemoryType.LORE]) == 1
+    assert restored[MemoryType.LORE][0].content == "地窖的秘密"
+    assert len(restored[MemoryType.QUEST]) == 1
+    assert restored[MemoryType.QUEST][0].content == "寻找宝石"
+
+
+def test_sync_to_state_includes_classified_memories():
+    state = _make_state()
+    mem = ClassifiedMemorySystem(state=state)
+    mem.add_memory(MemoryEntry(
+        id="m1", memory_type=MemoryType.DISCOVERY,
+        content="隐藏通道", importance=3,
+        created_turn=1, last_relevant_turn=1,
+    ))
+    synced = mem.sync_to_state(state)
+    assert "discovery" in synced.classified_memories_snapshot
+    assert len(synced.classified_memories_snapshot["discovery"]) == 1
+
+
+def test_rebuild_restores_classified_memories():
+    state = _make_state()
+    mem = ClassifiedMemorySystem(state=state)
+    mem.add_memory(MemoryEntry(
+        id="m1", memory_type=MemoryType.LORE,
+        content="格林的秘密", importance=8,
+        created_turn=1, last_relevant_turn=1,
+    ))
+    synced = mem.sync_to_state(state)
+
+    mem2 = ClassifiedMemorySystem(state=synced)
+    mem2.rebuild(synced)
+    ctx = mem2.build_context(actor="player", state=synced)
+    assert "格林的秘密" in ctx.active_skills_text
+
+
+def test_rebuild_with_empty_classified_snapshot():
+    state = _make_state()
+    mem = ClassifiedMemorySystem(state=state)
+    mem.add_memory(MemoryEntry(
+        id="m1", memory_type=MemoryType.LORE,
+        content="旧记忆", importance=5,
+        created_turn=1, last_relevant_turn=1,
+    ))
+    mem.rebuild(state)
+    ctx = mem.build_context(actor="player", state=state)
+    assert "旧记忆" not in ctx.active_skills_text

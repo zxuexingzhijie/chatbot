@@ -39,32 +39,32 @@ class MemoryExtractor:
 
 
 def _dialogue_importance(e: Event) -> int:
-    data = getattr(e, "data", None) or {}
+    data = e.data or {}
     return 8 if data.get("has_secret") else 4
 
 
 def _dialogue_content(e: Event) -> str:
-    data = getattr(e, "data", None) or {}
+    data = e.data or {}
     return data.get("summary_text", e.description)
 
 
 def _quest_content(e: Event) -> str:
-    data = getattr(e, "data", None) or {}
+    data = e.data or {}
     return f"任务 {data.get('quest_id', 'unknown')}: {data.get('status', 'unknown')}"
 
 
 def _relationship_importance(e: Event) -> int:
-    data = getattr(e, "data", None) or {}
+    data = e.data or {}
     return 6 if abs(data.get("delta", 0)) >= 10 else 3
 
 
 def _relationship_content(e: Event) -> str:
-    data = getattr(e, "data", None) or {}
+    data = e.data or {}
     return f"{data.get('npc_name', 'unknown')} 信任度 {data.get('delta', 0):+d}"
 
 
 def _discovery_content(e: Event) -> str:
-    data = getattr(e, "data", None) or {}
+    data = e.data or {}
     return data.get("description", e.description)
 
 
@@ -88,7 +88,7 @@ EXTRACTION_RULES: list[MemoryExtractionRule] = [
         content_fn=_relationship_content,
     ),
     MemoryExtractionRule(
-        event_type_pattern=r"search|look_detail",
+        event_type_pattern=r"^(?:search|look_detail)$",
         memory_type=MemoryType.DISCOVERY,
         importance_fn=lambda e: 2,
         content_fn=_discovery_content,

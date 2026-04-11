@@ -113,6 +113,7 @@ class Event(BaseModel):
     actor: str
     description: str
     consequences: tuple[str, ...] = ()
+    data: dict[str, Any] | None = None
 
 
 class ActionRequest(BaseModel):

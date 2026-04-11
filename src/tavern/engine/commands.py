@@ -12,7 +12,6 @@ class GameCommand:
     name: str
     description: str = ""
     aliases: tuple[str, ...] = ()
-    is_hidden: bool = False
     available_in: tuple = ()
     is_available: Callable[[Any], bool] = lambda _: True
     execute: Callable[[str, ModeContext], Awaitable[None]] = field(default=None)
@@ -36,7 +35,6 @@ class CommandRegistry:
         return [
             c for c in self._commands
             if mode in c.available_in
-            and not c.is_hidden
             and c.is_available(state)
         ]
 

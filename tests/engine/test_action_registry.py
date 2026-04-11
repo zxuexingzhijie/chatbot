@@ -103,7 +103,7 @@ class TestActionRegistry:
     def test_get_valid_targets_unknown_action(self):
         state = _make_state()
         reg = _make_registry()
-        assert reg.get_valid_targets(ActionType.TRADE, state) == []
+        assert reg.get_valid_targets(ActionType.CUSTOM, state) == []
 
     def test_validate_and_execute_success(self):
         state = _make_state()
@@ -116,7 +116,7 @@ class TestActionRegistry:
     def test_validate_and_execute_unknown_action(self):
         state = _make_state()
         reg = _make_registry()
-        req = ActionRequest(action=ActionType.TRADE, target="npc1")
+        req = ActionRequest(action=ActionType.CUSTOM, target="npc1")
         result, diff = reg.validate_and_execute(req, state)
         assert result.success is False
         assert "未知动作" in result.message

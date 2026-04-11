@@ -18,6 +18,7 @@ def _make_event(
     type: str = "unknown",
     actor: str = "player",
     description: str = "something happened",
+    data: dict | None = None,
 ) -> Event:
     return Event(
         id=id,
@@ -25,6 +26,7 @@ def _make_event(
         type=type,
         actor=actor,
         description=description,
+        data=data,
     )
 
 
@@ -35,8 +37,10 @@ def extractor() -> MemoryExtractor:
 
 class TestDialogueSummary:
     def test_has_secret_importance_8(self, extractor: MemoryExtractor) -> None:
-        event = _make_event(type="dialogue_summary_innkeeper")
-        object.__setattr__(event, "data", {"has_secret": True, "summary_text": "秘密对话"})
+        event = _make_event(
+            type="dialogue_summary_innkeeper",
+            data={"has_secret": True, "summary_text": "秘密对话"},
+        )
         result = extractor.extract(event, turn=5)
         assert result is not None
         assert result.memory_type is MemoryType.LORE
@@ -54,8 +58,10 @@ class TestDialogueSummary:
 
 class TestQuest:
     def test_quest_event(self, extractor: MemoryExtractor) -> None:
-        event = _make_event(type="quest_started", id="q1")
-        object.__setattr__(event, "data", {"quest_id": "find_gem", "status": "active"})
+        event = _make_event(
+            type="quest_started", id="q1",
+            data={"quest_id": "find_gem", "status": "active"},
+        )
         result = extractor.extract(event, turn=2)
         assert result is not None
         assert result.memory_type is MemoryType.QUEST
@@ -66,8 +72,10 @@ class TestQuest:
 
 class TestRelationship:
     def test_big_delta_importance_6(self, extractor: MemoryExtractor) -> None:
-        event = _make_event(type="relationship_changed")
-        object.__setattr__(event, "data", {"npc_name": "老王", "delta": 15})
+        event = _make_event(
+            type="relationship_changed",
+            data={"npc_name": "老王", "delta": 15},
+        )
         result = extractor.extract(event, turn=4)
         assert result is not None
         assert result.memory_type is MemoryType.RELATIONSHIP
@@ -75,8 +83,10 @@ class TestRelationship:
         assert result.content == "老王 信任度 +15"
 
     def test_small_delta_importance_3(self, extractor: MemoryExtractor) -> None:
-        event = _make_event(type="relationship_changed")
-        object.__setattr__(event, "data", {"npc_name": "小李", "delta": 3})
+        event = _make_event(
+            type="relationship_changed",
+            data={"npc_name": "小李", "delta": 3},
+        )
         result = extractor.extract(event, turn=4)
         assert result is not None
         assert result.importance == 3

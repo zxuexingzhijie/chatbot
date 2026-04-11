@@ -36,7 +36,10 @@ src/tavern/llm/openai_llm.py
 src/tavern/llm/service.py
 src/tavern/narrator/__init__.py
 src/tavern/narrator/narrator.py
-src/tavern/narrator/prompts.py
+src/tavern/narrator/prompts/__init__.py
+src/tavern/narrator/prompts/actions.py
+src/tavern/narrator/prompts/base.py
+src/tavern/narrator/prompts/builder.py
 src/tavern/parser/__init__.py
 src/tavern/parser/intent.py
 src/tavern/world/__init__.py
@@ -53,5 +56,6 @@ src/tavern_game.egg-info/dependency_links.txt
 src/tavern_game.egg-info/entry_points.txt
 src/tavern_game.egg-info/requires.txt
 src/tavern_game.egg-info/top_level.txt
+tests/test_bugfixes.py
 tests/test_integration.py
 tests/test_main.py

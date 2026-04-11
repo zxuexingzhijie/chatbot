@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 from tavern.engine.fsm import (
     EffectKind,
     GameMode,
-    Keybinding,
     ModeContext,
     PromptConfig,
     SideEffect,
@@ -46,7 +45,7 @@ class DialogueModeHandler:
         if stripped == "\x1b":
             return await self._end_dialogue(state, context)
 
-        active_ctx = self._dm._active
+        active_ctx = self._dm.active_context
         if active_ctx is None:
             await context.renderer.render_error("没有进行中的对话")
             return TransitionResult(next_mode=GameMode.EXPLORING)
@@ -77,7 +76,7 @@ class DialogueModeHandler:
         return TransitionResult(side_effects=tuple(effects))
 
     async def _end_dialogue(self, state: WorldState, context: ModeContext) -> TransitionResult:
-        active_ctx = self._dm._active
+        active_ctx = self._dm.active_context
         npc_id = active_ctx.npc_id if active_ctx else "unknown"
         if active_ctx is not None:
             summary = await self._dm.end(active_ctx)
@@ -88,7 +87,5 @@ class DialogueModeHandler:
         )
 
     def get_prompt_config(self, state: WorldState) -> PromptConfig:
-        return PromptConfig(prompt_text="对话> ", show_status_bar=False)
+        return PromptConfig(prompt_text="对话> ")
 
-    def get_keybindings(self) -> list[Keybinding]:
-        return []

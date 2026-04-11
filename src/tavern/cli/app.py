@@ -84,16 +84,18 @@ class GameApp:
         self._narrator = Narrator(llm_service=llm_service)
         self._llm_service = llm_service
         skills_dir = scenario_path / "skills"
+        from tavern.world.memory_extractor import EXTRACTION_RULES, MemoryExtractor
         self._memory = MemorySystem(
             state=initial_state,
             skills_dir=skills_dir if skills_dir.exists() else None,
+            extractor=MemoryExtractor(EXTRACTION_RULES),
         )
         self._scenario_path = scenario_path
 
         from tavern.content.loader import ContentLoader
-        content_loader = ContentLoader()
         content_dir = scenario_path / "content"
         if content_dir.exists():
+            content_loader = ContentLoader()
             content_loader.load_directory(content_dir)
         else:
             content_loader = None
