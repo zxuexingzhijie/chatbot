@@ -46,11 +46,21 @@ class KeybindingBridge:
         bindings = KeyBindings()
         context_map = self._resolver.get_context_map(mode)
 
+        allow_in_text_keys: set[str] = set()
+        for block in self._blocks:
+            if block.context == mode:
+                for kb in block.bindings:
+                    if kb.allow_in_text:
+                        allow_in_text_keys.add(kb.key)
+
         for key, action in context_map.items():
             text = self.ACTION_TO_TEXT.get(action)
             if text is None:
                 continue
-            self._register_key(bindings, key, text)
+            self._register_key(
+                bindings, key, text,
+                hotkey_only=key not in allow_in_text_keys,
+            )
 
         return bindings
 
@@ -59,11 +69,16 @@ class KeybindingBridge:
         bindings: KeyBindings,
         key: str,
         text: str,
+        *,
+        hotkey_only: bool = True,
     ) -> None:
         ptk_key = key.replace("ctrl+", "c-")
 
-        @bindings.add(ptk_key)
-        def handler(event, _text: str = text) -> None:
+        @bindings.add(ptk_key, eager=True)
+        def handler(event, _text: str = text, _hotkey_only: bool = hotkey_only) -> None:
+            if _hotkey_only and event.app.current_buffer.text.strip():
+                event.app.current_buffer.insert_text(event.data)
+                return
             event.app.exit(result=_text)
 
     def get_bindings_for_help(self, mode: GameMode) -> list[tuple[str, str]]:

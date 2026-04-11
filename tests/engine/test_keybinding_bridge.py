@@ -50,6 +50,10 @@ class TestBuildPtkBindings:
         bindings = bridge.build_ptk_bindings(GameMode.INVENTORY)
         assert len(bindings.bindings) == 0
 
+    def test_dialogue_bindings_built(self, bridge):
+        bindings = bridge.build_ptk_bindings(GameMode.DIALOGUE)
+        assert len(bindings.bindings) > 0
+
 
 class TestGetBindingsForHelp:
     def test_exploring_help_returns_tuples(self, bridge):
