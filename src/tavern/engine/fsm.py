@@ -115,8 +115,13 @@ class GameLoop:
             try:
                 handler = self._handlers[self._current_mode]
                 state = self._context.state_manager.state
+                bridge = self._context.keybinding_bridge
+                extra_bindings = None
+                if bridge is not None:
+                    extra_bindings = bridge.build_ptk_bindings(self._current_mode)
                 raw = await self._context.renderer.get_input(
-                    handler.get_prompt_config(state)
+                    config=handler.get_prompt_config(state),
+                    extra_bindings=extra_bindings,
                 )
                 result = await handler.handle_input(raw, state, self._context)
                 for effect in result.side_effects:

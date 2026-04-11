@@ -69,6 +69,9 @@ class KeybindingResolver:
             self._by_context[block.context] = hotkey_map
             self._text_shortcuts[block.context] = text_map
 
+    def get_context_map(self, game_mode: GameMode) -> dict[str, str]:
+        return self._by_context.get(game_mode, {})
+
     def resolve(
         self,
         key: str,

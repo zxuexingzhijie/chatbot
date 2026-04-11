@@ -42,16 +42,15 @@ class KeybindingBridge:
     def build_ptk_bindings(
         self,
         mode: GameMode,
-        on_action: Callable[[str], None],
     ) -> KeyBindings:
         bindings = KeyBindings()
-        context_map = self._resolver._by_context.get(mode, {})
+        context_map = self._resolver.get_context_map(mode)
 
         for key, action in context_map.items():
             text = self.ACTION_TO_TEXT.get(action)
             if text is None:
                 continue
-            self._register_key(bindings, key, text, on_action)
+            self._register_key(bindings, key, text)
 
         return bindings
 
@@ -60,19 +59,16 @@ class KeybindingBridge:
         bindings: KeyBindings,
         key: str,
         text: str,
-        on_action: Callable[[str], None],
     ) -> None:
         ptk_key = key.replace("ctrl+", "c-")
 
         @bindings.add(ptk_key)
-        def handler(event, _text: str = text, _on_action: Callable = on_action) -> None:
-            _on_action(_text)
+        def handler(event, _text: str = text) -> None:
             event.app.exit(result=_text)
 
     def get_bindings_for_help(self, mode: GameMode) -> list[tuple[str, str]]:
         result: list[tuple[str, str]] = []
         for block in self._blocks:
             if block.context == mode:
-                for kb in block.bindings:
-                    result.append((kb.key, kb.description))
+                result.extend((kb.key, kb.description) for kb in block.bindings)
         return result

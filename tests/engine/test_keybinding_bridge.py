@@ -39,24 +39,15 @@ class TestActionToText:
 class TestBuildPtkBindings:
     def test_returns_key_bindings_object(self, bridge):
         from prompt_toolkit.key_binding import KeyBindings
-        actions: list[str] = []
-        bindings = bridge.build_ptk_bindings(
-            GameMode.EXPLORING, on_action=actions.append,
-        )
+        bindings = bridge.build_ptk_bindings(GameMode.EXPLORING)
         assert isinstance(bindings, KeyBindings)
 
     def test_exploring_bindings_count(self, bridge):
-        actions: list[str] = []
-        bindings = bridge.build_ptk_bindings(
-            GameMode.EXPLORING, on_action=actions.append,
-        )
+        bindings = bridge.build_ptk_bindings(GameMode.EXPLORING)
         assert len(bindings.bindings) > 0
 
     def test_unknown_mode_returns_empty_bindings(self, bridge):
-        actions: list[str] = []
-        bindings = bridge.build_ptk_bindings(
-            GameMode.INVENTORY, on_action=actions.append,
-        )
+        bindings = bridge.build_ptk_bindings(GameMode.INVENTORY)
         assert len(bindings.bindings) == 0
 
 
