@@ -10,6 +10,8 @@ from tavern.engine.effects import EFFECT_EXECUTORS
 from tavern.engine.fsm import GameLoop, GameMode, ModeContext
 from tavern.engine.modes.dialogue import DialogueModeHandler
 from tavern.engine.modes.exploring import ExploringModeHandler
+from tavern.narrator.cached_builder import CachedPromptBuilder
+from tavern.narrator.scene_cache import SceneContextCache
 
 
 def bootstrap(
@@ -23,11 +25,20 @@ def bootstrap(
     intent_parser: Any,
     logger: Any,
     game_logger: Any = None,
+    content_loader: Any = None,
 ) -> GameLoop:
     command_registry = CommandRegistry()
     register_all_commands(command_registry)
 
     action_registry = ActionRegistry(build_all_actions())
+
+    scene_cache = SceneContextCache()
+    cached_builder = CachedPromptBuilder(
+        content_loader=content_loader,
+        cache=scene_cache,
+        state_manager=state_manager,
+    )
+    narrator._cached_builder = cached_builder
 
     context = ModeContext(
         state_manager=state_manager,

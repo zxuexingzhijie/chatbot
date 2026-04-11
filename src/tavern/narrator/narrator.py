@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, AsyncGenerator
+from typing import Any, TYPE_CHECKING, AsyncGenerator
 
 from tavern.narrator.prompts import NarrativeContext, build_ending_prompt, build_narrative_prompt
 from tavern.world.models import ActionResult
@@ -15,8 +15,9 @@ logger = logging.getLogger(__name__)
 
 
 class Narrator:
-    def __init__(self, llm_service: LLMService) -> None:
+    def __init__(self, llm_service: LLMService, cached_builder: Any = None) -> None:
         self._llm = llm_service
+        self._cached_builder = cached_builder
 
     async def stream_narrative(
         self,
@@ -40,6 +41,12 @@ class Narrator:
         player = state.characters[state.player_id]
         location = state.locations[player.location_id]
 
+        if self._cached_builder is not None:
+            scene = self._cached_builder.build_scene_context(state)
+            loc_desc = scene.location_description
+        else:
+            loc_desc = location.description
+
         target_name: str | None = None
         if result.target:
             if result.target in state.characters:
@@ -53,7 +60,7 @@ class Narrator:
             action_type=result.action.value,
             action_message=result.message,
             location_name=location.name,
-            location_desc=location.description,
+            location_desc=loc_desc,
             player_name=player.name,
             target=target_name,
         )
@@ -99,8 +106,8 @@ class Narrator:
         if memory_ctx:
             if memory_ctx.recent_events:
                 memory_section += f"\n最近事件: {memory_ctx.recent_events}"
-            if memory_ctx.relationships:
-                memory_section += f"\n人际关系: {memory_ctx.relationships}"
+            if memory_ctx.relationship_summary:
+                memory_section += f"\n人际关系: {memory_ctx.relationship_summary}"
 
         system_prompt = (
             "你是一个奇幻文字冒险游戏的叙事者。用文学性的中文描写场景变化。\n"
