@@ -2,9 +2,41 @@
 
 **目标**：将 Phase 1-4 构建的基础设施组件（ContentLoader、KeybindingResolver、Markdown 渲染）接入实际运行时，使其端到端生效。
 
-**范围**：3 个独立方向，无相互依赖。
+**范围**：3 个独立方向 + 1 个前置修复（§0）。
 
 **不在范围**：COMBAT / INVENTORY / SHOP mode handler（Phase 5B 单独设计）。
+
+---
+
+## §0 前置修复：Renderer.get_input() 签名对齐
+
+### 0.1 问题
+
+GameLoop.run()（fsm.py:117-118）调用 `renderer.get_input(handler.get_prompt_config(state))`，传入 `PromptConfig`。但 Renderer.get_input()（renderer.py:439）实际签名是无参的 `async def get_input(self) -> str`。这是 Phase 3 引入 FSM 时留下的不一致。
+
+### 0.2 修复方案
+
+扩展 `Renderer.get_input()` 接受可选的 `PromptConfig`：
+
+```python
+async def get_input(self, config: PromptConfig | None = None) -> str:
+    prompt_text = config.prompt_text if config else "▸ "
+    # 使用 prompt_text 替代硬编码的 "▸ "
+```
+
+同时让方法接受 `extra_bindings` 参数（§2 需要）：
+
+```python
+async def get_input(
+    self,
+    config: PromptConfig | None = None,
+    extra_bindings: KeyBindings | None = None,
+) -> str:
+```
+
+### 0.3 为什么是前置任务
+
+§2 Keybinding 接入需要修改 `get_input` 签名。先把签名对齐，避免后续冲突。
 
 ---
 
@@ -17,7 +49,7 @@
 ### 1.2 Markdown 文件结构
 
 ```
-data/scenarios/tavern/content/
+src/tavern/data/scenarios/tavern/content/
 ├── locations/
 │   ├── tavern_hall.md
 │   ├── tavern_hall.night.md   # variant 示范
@@ -110,32 +142,44 @@ self._game_loop = bootstrap(
 
 **`CachedPromptBuilder`（cached_builder.py）**：
 
-新增两个方法：
+新增一个通用方法（ContentLoader.resolve() 本身不区分 type，只按 id 查，无需按类型拆分）：
 
 ```python
-def resolve_item(self, item_id: str) -> str | None:
-    """查询 item 的 Markdown 描述，fallback 返回 None。"""
+def resolve_content(self, content_id: str) -> str | None:
+    """查询任意内容的 Markdown 描述。返回 None 表示无对应内容。"""
     if self._content is None:
         return None
-    return self._content.resolve(item_id)
-
-def resolve_character(self, char_id: str) -> str | None:
-    """查询 character 的 Markdown 描述，fallback 返回 None。"""
-    if self._content is None:
-        return None
-    return self._content.resolve(char_id)
+    return self._content.resolve(content_id)
 ```
 
-**`build_scene_context` 已有的 location 查询逻辑不变**（先 ContentLoader，fallback 到 YAML description）。
+调用方按需 fallback：
+```python
+desc = builder.resolve_content(item_id) or item.description
+```
+
+**`build_scene_context` 已有的 location 查询逻辑不变**（先 ContentLoader，fallback 到 YAML description），内部改用 `resolve_content(loc_id)`。
 
 **Condition evaluator**：
 
-为 variant 提供 `condition_evaluator` 回调，在 `build_scene_context` 中：
+为 variant 提供 `condition_evaluator` 回调。独立为 `src/tavern/content/conditions.py`（不绑定到 CachedPromptBuilder，方便复用和测试）：
 
 ```python
-def _eval_condition(self, when: str, state: WorldState) -> bool:
-    """简单表达式求值：支持 'turn > N' 格式。"""
-    # 仅支持 turn 比较，后续可扩展
+# src/tavern/content/conditions.py
+
+def evaluate_content_condition(when: str, *, turn: int = 0, **kwargs) -> bool:
+    """简单条件表达式求值。
+
+    支持格式：'turn > N', 'turn < N', 'turn >= N'。
+    返回 False 表示条件不匹配或表达式无法解析。
+    """
+```
+
+在 `build_scene_context` 中传入：
+```python
+description = self._content.resolve(
+    loc_id,
+    condition_evaluator=lambda when, **kw: evaluate_content_condition(when, turn=state.turn),
+)
 ```
 
 ### 1.6 YAML 字段保留
@@ -164,7 +208,23 @@ Renderer.get_input() → raw input string
 GameLoop.run() → handler.handle_input(raw, ...)
 ```
 
-### 2.3 新文件：`src/tavern/engine/keybinding_bridge.py`
+### 2.3 消除 get_keybindings() 重复
+
+ExploringModeHandler.get_keybindings() 和 DialogueModeHandler.get_keybindings() 各自返回硬编码的快捷键列表，与 DEFAULT_BINDINGS 内容重复。
+
+**方案**：KeybindingBridge 成为唯一的绑定来源，ModeHandler.get_keybindings() 改为从 KeybindingResolver 读取而非硬编码：
+
+```python
+# ModeHandler 的 get_keybindings() 改为委托查询
+def get_keybindings(self) -> list[Keybinding]:
+    # 由 GameLoop 从 KeybindingResolver 获取当前 mode 的绑定
+    # ModeHandler 不再硬编码，返回空列表
+    return []
+```
+
+实际绑定全部由 DEFAULT_BINDINGS → KeybindingResolver → KeybindingBridge 流转。ModeHandler.get_keybindings() 保留接口兼容性但内容清空。帮助信息（`/help`）通过 KeybindingResolver 查询当前 mode 的绑定来动态生成。
+
+### 2.4 新文件：`src/tavern/engine/keybinding_bridge.py`
 
 ```python
 from prompt_toolkit.key_binding import KeyBindings
@@ -172,6 +232,8 @@ from prompt_toolkit.key_binding import KeyBindings
 class KeybindingBridge:
     """将 KeybindingResolver 映射转为 prompt_toolkit KeyBindings。"""
 
+    # 临时硬编码的中文映射表。当前阶段直接写死，
+    # 后续多语言支持时需要迁移到配置文件。
     ACTION_TO_TEXT: dict[str, str] = {
         "move_north": "前往北方",
         "move_south": "前往南方",
@@ -183,7 +245,7 @@ class KeybindingBridge:
         "show_help": "/help",
         "save_game": "/save",
         "end_dialogue": "bye",
-        "select_hint_1": "1",  # 对话模式数字选择
+        "select_hint_1": "1",
         "select_hint_2": "2",
         "select_hint_3": "3",
     }
@@ -204,9 +266,12 @@ class KeybindingBridge:
         # 遍历 resolver 中该 mode 的所有绑定，注册 ptk handler
         # handler 内部调用 resolver.resolve() 并通过 ACTION_TO_TEXT 转换
         return bindings
+
+    def get_bindings_for_help(self, mode: GameMode) -> list[tuple[str, str]]:
+        """返回 (key, description) 列表，用于帮助信息显示。"""
 ```
 
-### 2.4 桥接机制
+### 2.5 桥接机制
 
 1. **按键事件** → prompt_toolkit 触发 handler
 2. **handler 内部**：调用 `resolver.resolve(key, current_mode, input_mode, buffer_empty)`
@@ -214,19 +279,23 @@ class KeybindingBridge:
 4. **`ACTION_TO_TEXT[action]`** 映射为中文指令或斜杠命令
 5. **调用 `on_action(text)`**，在 Renderer 中实现为 `app.exit(result=text)`
 
-### 2.5 Renderer 改动
+### 2.6 Renderer 改动
 
-**`get_input()` 方法**：
+`get_input()` 的签名已在 §0 中对齐。§2 在此基础上增加 `extra_bindings` 参数：
 
 ```python
-async def get_input(self, extra_bindings: KeyBindings | None = None) -> str:
-    merged = merge_key_bindings([self._session.key_bindings, extra_bindings])
-    # 或者在 PromptSession 初始化时设置
+async def get_input(
+    self,
+    config: PromptConfig | None = None,
+    extra_bindings: KeyBindings | None = None,
+) -> str:
+    prompt_text = config.prompt_text if config else "▸ "
+    # 合并 extra_bindings 到 PromptSession
 ```
 
 **`get_input_with_card_hints()`**：card UI 的硬编码绑定保持不变，KeybindingBridge 的绑定在 card 模式下不生效（DIALOGUE mode 只有 1/2/3/escape）。
 
-### 2.6 GameLoop 集成
+### 2.7 GameLoop 集成
 
 GameLoop.run() 中每次输入前：
 
@@ -238,7 +307,7 @@ ptk_bindings = bridge.build_ptk_bindings(
 raw = await renderer.get_input(extra_bindings=ptk_bindings)
 ```
 
-### 2.7 ModeContext 扩展
+### 2.8 ModeContext 扩展
 
 `ModeContext` 新增可选字段：
 
@@ -248,7 +317,7 @@ keybinding_bridge: Any = None  # KeybindingBridge 实例
 
 `bootstrap()` 中实例化 `KeybindingResolver(DEFAULT_BINDINGS)` + `KeybindingBridge(resolver)` 并注入。
 
-### 2.8 不在范围
+### 2.9 不在范围
 
 - COMBAT mode 的快捷键执行逻辑（Phase 5B）
 - 用户自定义键绑定配置文件
@@ -273,7 +342,7 @@ async def render_stream(self, stream, *, atmosphere="neutral"):
     with Live(
         Markdown(""),
         console=self.console,
-        refresh_per_second=15,
+        refresh_per_second=_LIVE_REFRESH_RATE,  # 初始值 15，需实测调优
         vertical_overflow="visible",
     ) as live:
         async for chunk in stream:
@@ -286,6 +355,8 @@ async def render_stream(self, stream, *, atmosphere="neutral"):
                     if last_char in _TYPEWRITER_PAUSES:
                         await asyncio.sleep(_TYPEWRITER_PAUSES[last_char])
 ```
+
+**性能说明**：`_LIVE_REFRESH_RATE = 15` 是初始值。每次刷新重新解析整个 buffer 为 Markdown AST，在典型叙事文本（几百字）下性能无问题。如果实测发现长文本卡顿，可以降低到 8-10。定义为模块常量方便调优。
 
 ### 3.3 atmosphere 样式
 
@@ -302,13 +373,19 @@ live.update(styled_md)
 
 或者直接在 `Live` 的 `renderable` 外层套一个 `Styled` 对象。
 
-### 3.4 Entity 高亮
+### 3.4 Entity 高亮迁移策略
 
-Markdown 渲染后 Rich markup 标签（`[bold cyan]...[/]`）会被转义为纯文本。
+Markdown 渲染后 Rich markup 标签（`[bold cyan]...[/]`）会被转义为纯文本，所以 `_highlight_entities` 不能直接用于 Markdown 渲染路径。
 
-**方案**：不再对叙事文本做 `_highlight_entities` 后处理。改为在 LLM prompt 中指示用 Markdown 加粗标记实体名称（`**名字**`），这样 `rich.Markdown` 会自动渲染为粗体。
+**两阶段迁移**：
 
-`_highlight_entities` 仍保留给非 Markdown 渲染路径（`render_result` 等非叙事输出）。
+**阶段 1（本 Phase）**：`render_stream` 改用 Markdown 渲染后，叙事文本中的 entity 名称不再做高亮。Markdown 自带的格式（粗体、斜体）已经提供了视觉层次。`_highlight_entities` 保留给非 Markdown 路径（`render_result`、`render_welcome` 的 YAML fallback 等）。
+
+**阶段 2（后续可选）**：修改 Narrator 的 prompt template（`src/tavern/narrator/narrator.py` 的 `_build_context` 方法中的 system prompt），指示 LLM 用 Markdown 加粗标记重要实体名称（`**名字**`）。具体要改的 prompt：
+- `narrator.py` 中 `_build_context()` 的 system prompt 部分
+- 新增指示：`"在叙事文本中，用 **粗体** 标记重要的人名、地名和物品名。"`
+
+**过渡期兼容**：旧 prompt 产生的纯文本经过 `rich.Markdown` 渲染不会出错——Markdown 解析器会把没有格式标记的纯文本原样输出。所以阶段 1 完成后即使不做阶段 2，也不会有渲染问题，只是缺少 entity 高亮。
 
 ### 3.5 其他渲染点适配
 
@@ -341,20 +418,21 @@ def render_markdown_text(console: Console, text: str) -> None:
 
 ## 依赖关系
 
-3 个方向彼此独立，可以并行实施：
+§0 是前置修复，§1/§2/§3 彼此独立可并行：
 
 ```
-§1 内容迁移 ─────┐
-§2 Keybinding ───┼─→ 集成验证
-§3 Markdown 渲染 ─┘
+§0 get_input 签名对齐 ──┬─→ §1 内容迁移
+                        ├─→ §2 Keybinding 接入
+                        └─→ §3 Markdown 渲染
+                              │
+§1 + §3 ─────────────────────→ 集成验证（Markdown 内容经渲染管道显示）
 ```
-
-集成验证：§1 的 Markdown 内容通过 §3 的渲染管道显示，形成端到端闭环。
 
 ## 测试策略
 
 | 方向 | 测试类型 |
 |------|----------|
-| §1 | ContentLoader 加载 Markdown 文件、CachedPromptBuilder 新方法、condition evaluator |
-| §2 | KeybindingBridge 构建 ptk bindings、action→text 映射、Renderer 接受 extra_bindings |
-| §3 | render_stream Live+Markdown 输出、render_welcome Markdown 适配 |
+| §0 | Renderer.get_input 接受 PromptConfig + extra_bindings |
+| §1 | ContentLoader 加载 Markdown 文件、CachedPromptBuilder.resolve_content、evaluate_content_condition |
+| §2 | KeybindingBridge 构建 ptk bindings、action→text 映射、get_bindings_for_help |
+| §3 | render_stream Live+Markdown 输出、render_welcome Markdown 适配、纯文本兼容性 |
