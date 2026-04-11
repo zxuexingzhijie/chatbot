@@ -93,6 +93,14 @@ class GameApp:
         from tavern.world.persistence import SaveManager
         self._save_manager = SaveManager(saves_dir)
 
+        import uuid
+        from tavern.engine.game_logger import GameLogger
+        log_dir = Path(game_config.get("log_dir", "logs"))
+        self._game_logger = GameLogger(
+            log_dir=log_dir,
+            session_id=str(uuid.uuid4())[:8],
+        )
+
         story_path = scenario_path / "story.yaml"
         self._story_engine = StoryEngine(
             load_story_nodes(story_path) if story_path.exists() else {}
@@ -114,6 +122,7 @@ class GameApp:
             story_engine=self._story_engine,
             intent_parser=self._parser,
             logger=logger,
+            game_logger=self._game_logger,
         )
 
     @staticmethod
@@ -260,4 +269,7 @@ class GameApp:
     async def run(self) -> None:
         self._renderer.render_welcome(self.state, self._scenario_meta.name)
         self._renderer.render_status_bar(self.state)
-        await self._game_loop.run()
+        try:
+            await self._game_loop.run()
+        finally:
+            self._game_logger.close()

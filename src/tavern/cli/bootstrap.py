@@ -22,6 +22,7 @@ def bootstrap(
     story_engine: Any,
     intent_parser: Any,
     logger: Any,
+    game_logger: Any = None,
 ) -> GameLoop:
     command_registry = CommandRegistry()
     register_all_commands(command_registry)
@@ -40,6 +41,7 @@ def bootstrap(
         action_registry=action_registry,
         intent_parser=intent_parser,
         logger=logger,
+        game_logger=game_logger,
     )
 
     handlers = {

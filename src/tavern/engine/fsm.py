@@ -72,6 +72,7 @@ class ModeContext:
     action_registry: ActionRegistry | None
     intent_parser: Any
     logger: Any
+    game_logger: Any = None
 
 
 class ModeHandler(Protocol):

@@ -95,6 +95,22 @@ async def cmd_load(args: str, ctx: ModeContext) -> None:
         ctx.renderer.console.print(f"\n[red]{e}[/]\n")
 
 
+async def cmd_journal(args: str, ctx: ModeContext) -> None:
+    if ctx.game_logger is None:
+        ctx.renderer.console.print("\n[dim]冒险日志尚未启用。[/]\n")
+        return
+    entries = ctx.game_logger.read_recent(n=20)
+    player_entries = [e for e in entries if e.entry_type == "player_input"]
+    if not player_entries:
+        ctx.renderer.console.print("\n[dim]冒险日志为空。[/]\n")
+        return
+    ctx.renderer.console.print("\n[bold]冒险日志[/]")
+    for entry in player_entries:
+        raw = entry.data.get("raw", "?")
+        ctx.renderer.console.print(f"  [dim]回合{entry.turn}[/] {raw}")
+    ctx.renderer.console.print()
+
+
 async def cmd_quit(args: str, ctx: ModeContext) -> None:
     raise SystemExit(0)
 
@@ -139,6 +155,10 @@ def register_all_commands(registry: CommandRegistry) -> None:
     registry.register(GameCommand(
         name="/load", description="加载存档",
         available_in=_EXPLORING, execute=cmd_load,
+    ))
+    registry.register(GameCommand(
+        name="/journal", aliases=("/j", "/日志"), description="查看冒险日志",
+        available_in=_ALL_MODES, execute=cmd_journal,
     ))
     registry.register(GameCommand(
         name="/quit", aliases=("/q", "/退出"), description="退出游戏",
