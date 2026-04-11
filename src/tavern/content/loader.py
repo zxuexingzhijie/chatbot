@@ -4,13 +4,14 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import Callable
 
 import yaml
 
 logger = logging.getLogger(__name__)
 
-ConditionEvaluatorFn = Callable[..., bool]
+ContentConditionFn = Callable[..., bool]
 
 
 class ContentError(Exception):
@@ -30,9 +31,9 @@ class VariantDef:
 class ContentEntry:
     id: str
     content_type: str
-    metadata: dict
+    metadata: MappingProxyType
     body: str
-    variants: dict[str, str]
+    variants: MappingProxyType
     variant_defs: tuple[VariantDef, ...]
 
 
@@ -92,16 +93,16 @@ class ContentLoader:
             self._entries[content_id] = ContentEntry(
                 id=content_id,
                 content_type=content_type,
-                metadata=meta,
+                metadata=MappingProxyType(meta),
                 body=body,
-                variants=variants,
+                variants=MappingProxyType(variants),
                 variant_defs=variant_defs,
             )
 
     def resolve(
         self,
         entry_id: str,
-        condition_evaluator: ConditionEvaluatorFn | None = None,
+        condition_evaluator: ContentConditionFn | None = None,
         **eval_kwargs,
     ) -> str | None:
         entry = self._entries.get(entry_id)
