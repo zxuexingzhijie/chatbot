@@ -70,6 +70,7 @@ class ModeContext:
     story_engine: Any
     command_registry: CommandRegistry
     action_registry: ActionRegistry | None
+    intent_parser: Any
     logger: Any
 
 

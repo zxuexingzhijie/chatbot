@@ -46,6 +46,7 @@ def _make_ctx(
         story_engine=story_engine,
         command_registry=MagicMock(),
         action_registry=None,
+        intent_parser=MagicMock(),
         logger=MagicMock(),
     )
 

@@ -44,5 +44,6 @@ def _make_deps() -> dict:
         memory=MagicMock(),
         persistence=MagicMock(),
         story_engine=MagicMock(),
+        intent_parser=MagicMock(),
         logger=MagicMock(),
     )

@@ -31,6 +31,7 @@ def _make_context(**overrides) -> ModeContext:
         story_engine=MagicMock(),
         command_registry=MagicMock(),
         action_registry=MagicMock(),
+        intent_parser=MagicMock(),
         logger=MagicMock(),
     )
     defaults.update(overrides)

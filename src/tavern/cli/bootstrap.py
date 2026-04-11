@@ -20,6 +20,7 @@ def bootstrap(
     memory: Any,
     persistence: Any,
     story_engine: Any,
+    intent_parser: Any,
     logger: Any,
 ) -> GameLoop:
     command_registry = CommandRegistry()
@@ -37,6 +38,7 @@ def bootstrap(
         story_engine=story_engine,
         command_registry=command_registry,
         action_registry=action_registry,
+        intent_parser=intent_parser,
         logger=logger,
     )
 
