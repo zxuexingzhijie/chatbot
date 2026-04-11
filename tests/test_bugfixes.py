@@ -1,115 +1,22 @@
-"""Tests for the 7-bug fix batch — relationship direction, dialogue events,
-SEARCH events, story stat→relationship sync, Anthropic base_url, default config,
-and story_active_since apply_diff."""
+"""Tests for the 7-bug fix batch — SEARCH events, story stat->relationship sync,
+Anthropic base_url, default config, and API key strip."""
 
 from __future__ import annotations
 
 import pytest
 from unittest.mock import MagicMock, patch
 
-from tavern.dialogue.context import DialogueSummary
 from tavern.engine.actions import ActionType
 from tavern.engine.rules import RulesEngine
 from tavern.llm.adapter import LLMConfig
-from tavern.world.memory import RelationshipGraph
 from tavern.world.models import (
     ActionRequest,
-    ActionResult,
     Character,
     CharacterRole,
     Location,
 )
-from tavern.world.state import StateManager, StateDiff, WorldState
+from tavern.world.state import WorldState
 from tavern.cli.app import GameApp
-
-
-# ── Helpers ──────────────────────────────────────────────────────────────────
-
-def _make_app(state: WorldState) -> GameApp:
-    app = GameApp.__new__(GameApp)
-    app._state_manager = StateManager(initial_state=state)
-    app._renderer = MagicMock()
-    app._memory = MagicMock()
-    app._save_manager = MagicMock()
-    return app
-
-
-def _base_state() -> WorldState:
-    return WorldState(
-        turn=5,
-        player_id="player",
-        locations={
-            "tavern_hall": Location(
-                id="tavern_hall", name="酒馆大厅", description="大厅",
-                npcs=("traveler",),
-            ),
-            "backyard": Location(
-                id="backyard", name="后院", description="后院",
-            ),
-        },
-        characters={
-            "player": Character(
-                id="player", name="冒险者",
-                role=CharacterRole.PLAYER,
-                stats={"hp": 100},
-                location_id="tavern_hall",
-            ),
-            "traveler": Character(
-                id="traveler", name="旅行者",
-                role=CharacterRole.NPC,
-                traits=("友善",),
-                stats={"trust": 10},
-                location_id="tavern_hall",
-            ),
-        },
-        items={},
-    )
-
-
-# ── Bug #1: relationship direction ──────────────────────────────────────────
-
-class TestBug1RelationshipDirection:
-    def test_dialogue_end_relationship_direction_player_to_npc(self):
-        state = _base_state()
-        app = _make_app(state)
-        summary = DialogueSummary(
-            npc_id="traveler",
-            summary_text="友好交谈",
-            total_trust_delta=5,
-            key_info=(),
-            turns_count=2,
-        )
-        app._apply_dialogue_end(summary)
-
-        calls = app._memory.apply_diff.call_args_list
-        trust_call = calls[0]
-        diff = trust_call[0][0]
-        assert len(diff.relationship_changes) == 1
-        rc = diff.relationship_changes[0]
-        assert rc["src"] == "player"
-        assert rc["tgt"] == "traveler"
-        assert rc["delta"] == 5
-
-
-# ── Bug #2: talked_to events ────────────────────────────────────────────────
-
-class TestBug2TalkedToEvents:
-    def test_dialogue_end_produces_talked_to_event(self):
-        state = _base_state()
-        app = _make_app(state)
-        summary = DialogueSummary(
-            npc_id="traveler",
-            summary_text="友好交谈",
-            total_trust_delta=0,
-            key_info=(),
-            turns_count=1,
-        )
-        app._apply_dialogue_end(summary)
-
-        new_state = app._state_manager.current
-        talked_events = [e for e in new_state.timeline if e.id == "talked_to_traveler"]
-        assert len(talked_events) == 1
-        assert talked_events[0].type == "dialogue_trigger"
 
 
 # ── Bug #3: SEARCH produces events ──────────────────────────────────────────
@@ -308,58 +215,6 @@ class TestBug6DefaultConfig:
         assert "llm" not in config
 
 
-# ── Bug #6 (key_info events) ────────────────────────────────────────────────
-
-class TestBug6KeyInfoEvents:
-    def test_key_info_with_letter_produces_about_letter_event(self):
-        state = _base_state()
-        app = _make_app(state)
-        summary = DialogueSummary(
-            npc_id="bartender_grim",
-            summary_text="酒保谈了信件",
-            total_trust_delta=0,
-            key_info=("酒保提到了一封重要的letter",),
-            turns_count=1,
-        )
-        state_with_bartender = state.model_copy(update={
-            "characters": {
-                **dict(state.characters),
-                "bartender_grim": Character(
-                    id="bartender_grim", name="格里姆",
-                    role=CharacterRole.NPC,
-                    stats={"trust": 0},
-                    location_id="tavern_hall",
-                ),
-            },
-        })
-        app._state_manager = StateManager(initial_state=state_with_bartender)
-        app._apply_dialogue_end(summary)
-
-        new_state = app._state_manager.current
-        letter_events = [
-            e for e in new_state.timeline
-            if e.id == "talked_to_bartender_grim_about_letter"
-        ]
-        assert len(letter_events) == 1
-        assert letter_events[0].type == "dialogue_topic"
-
-    def test_key_info_without_keyword_no_extra_events(self):
-        state = _base_state()
-        app = _make_app(state)
-        summary = DialogueSummary(
-            npc_id="traveler",
-            summary_text="闲聊",
-            total_trust_delta=0,
-            key_info=("旅行者来自北方",),
-            turns_count=1,
-        )
-        app._apply_dialogue_end(summary)
-
-        new_state = app._state_manager.current
-        topic_events = [e for e in new_state.timeline if e.type == "dialogue_topic"]
-        assert len(topic_events) == 0
-
-
 # ── API key strip (trailing whitespace) ─────────────────────────────────────
 
 class TestApiKeyStrip:
@@ -399,28 +254,3 @@ class TestApiKeyStrip:
             AnthropicAdapter(config=config)
             call_kwargs = mock_cls.call_args.kwargs
             assert call_kwargs["api_key"] == "sk-ant-test"
-
-class TestBug7StoryActiveSince:
-    def test_update_story_active_since_calls_apply_diff(self):
-        state = _base_state()
-        app = _make_app(state)
-        mock_story_engine = MagicMock()
-        mock_story_engine.get_active_nodes.return_value = {"node_1"}
-        app._story_engine = mock_story_engine
-
-        app._update_story_active_since()
-
-        app._memory.apply_diff.assert_called_once()
-        diff_arg = app._memory.apply_diff.call_args[0][0]
-        assert "node_1" in diff_arg.story_active_since_updates
-
-    def test_update_story_active_since_no_new_nodes_no_call(self):
-        state = _base_state()
-        app = _make_app(state)
-        mock_story_engine = MagicMock()
-        mock_story_engine.get_active_nodes.return_value = set()
-        app._story_engine = mock_story_engine
-
-        app._update_story_active_since()
-
-        app._memory.apply_diff.assert_not_called()

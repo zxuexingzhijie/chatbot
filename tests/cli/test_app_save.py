@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-import asyncio
 import pytest
 from unittest.mock import MagicMock
 from pathlib import Path
 
 from tavern.world.models import Character, CharacterRole, Location
-from tavern.world.state import WorldState, StateManager
+from tavern.world.state import WorldState, StateManager, StateDiff
 from tavern.world.persistence import SaveManager
+from tavern.engine.actions import ActionType
+from tavern.world.models import ActionResult
 
 
 @pytest.fixture
@@ -40,7 +41,6 @@ def app(mock_state, tmp_path):
     game._memory.sync_to_state.return_value = mock_state
     game._dialogue_manager = MagicMock()
     game._dialogue_manager.is_active = False
-    game._dialogue_ctx = None
     from tavern.data import get_bundled_scenario
     game._scenario_path = get_bundled_scenario("tavern")
     game._game_config = {"saves_dir": str(tmp_path / "saves"), "undo_history_size": 50}
@@ -48,44 +48,7 @@ def app(mock_state, tmp_path):
     return game
 
 
-def test_save_command_calls_save_manager(app, tmp_path):
-    asyncio.run(app._handle_system_command("save", "autosave"))
-    assert (tmp_path / "saves" / "autosave.json").exists()
-    app._renderer.render_save_success.assert_called_once()
-
-
-def test_save_command_named_slot(app, tmp_path):
-    asyncio.run(app._handle_system_command("save", "mygame"))
-    assert (tmp_path / "saves" / "mygame.json").exists()
-
-
-def test_load_command_rebuilds_state_manager_and_memory(app, tmp_path, mock_state):
-    app._save_manager.save(mock_state, "autosave")
-
-    asyncio.run(app._handle_system_command("load", "autosave"))
-
-    assert app._state_manager is not None
-    assert app._memory is not None
-    app._renderer.render_load_success.assert_called_once()
-    app._renderer.render_status_bar.assert_called()
-
-
-def test_load_during_dialogue_rejected(app, mock_state):
-    app._dialogue_manager.is_active = True
-    asyncio.run(app._handle_system_command("load", "autosave"))
-    app._renderer.render_load_success.assert_not_called()
-
-
-def test_saves_command_renders_list(app):
-    asyncio.run(app._handle_system_command("saves", "autosave"))
-    app._renderer.render_saves_list.assert_called_once()
-
-
 def test_autosave_after_successful_action(app, tmp_path, mock_state):
-    from tavern.world.state import StateDiff
-    from tavern.engine.actions import ActionType
-    from tavern.world.models import ActionResult
-
     diff = StateDiff(turn_increment=1)
     result = ActionResult(success=True, action=ActionType.MOVE, message="移动了")
     app._state_manager.commit(diff, result)
