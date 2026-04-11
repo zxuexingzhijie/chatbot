@@ -88,6 +88,15 @@ class GameApp:
             skills_dir=skills_dir if skills_dir.exists() else None,
         )
         self._scenario_path = scenario_path
+
+        from tavern.content.loader import ContentLoader
+        content_loader = ContentLoader()
+        content_dir = scenario_path / "content"
+        if content_dir.exists():
+            content_loader.load_directory(content_dir)
+        else:
+            content_loader = None
+
         self._game_config = game_config
         saves_dir = Path(game_config.get("saves_dir", "saves"))
         from tavern.world.persistence import SaveManager
@@ -123,6 +132,7 @@ class GameApp:
             intent_parser=self._parser,
             logger=logger,
             game_logger=self._game_logger,
+            content_loader=content_loader,
         )
 
     @staticmethod
