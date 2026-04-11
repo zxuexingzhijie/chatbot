@@ -6,6 +6,7 @@ from enum import Enum
 from typing import Any, Awaitable, Callable, Protocol, TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from tavern.engine.action_registry import ActionRegistry
     from tavern.engine.commands import CommandRegistry
     from tavern.world.state import ReactiveStateManager, WorldState
 
@@ -68,7 +69,7 @@ class ModeContext:
     persistence: Any
     story_engine: Any
     command_registry: CommandRegistry
-    action_registry: Any
+    action_registry: ActionRegistry | None
     logger: Any
 
 

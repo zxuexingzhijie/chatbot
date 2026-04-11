@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from tavern.engine.actions import ActionType
-from tavern.engine.commands import CommandContext, CommandRegistry, GameCommand
+from tavern.engine.commands import CommandRegistry, GameCommand
 from tavern.engine.fsm import GameMode
 from tavern.world.models import ActionRequest
 
+if TYPE_CHECKING:
+    from tavern.engine.fsm import ModeContext
 
-async def cmd_look(args: str, ctx: CommandContext) -> None:
+
+async def cmd_look(args: str, ctx: ModeContext) -> None:
     if args:
         request = ActionRequest(action=ActionType.LOOK, target=args)
     else:
@@ -22,24 +27,24 @@ async def cmd_look(args: str, ctx: CommandContext) -> None:
     ctx.renderer.render_result(result)
 
 
-async def cmd_inventory(args: str, ctx: CommandContext) -> None:
+async def cmd_inventory(args: str, ctx: ModeContext) -> None:
     ctx.renderer.render_inventory(ctx.state_manager.state)
 
 
-async def cmd_status(args: str, ctx: CommandContext) -> None:
+async def cmd_status(args: str, ctx: ModeContext) -> None:
     relationships = ctx.memory.get_player_relationships(
         ctx.state_manager.state.player_id
     )
     ctx.renderer.render_status(ctx.state_manager.state, relationships)
 
 
-async def cmd_hint(args: str, ctx: CommandContext) -> None:
+async def cmd_hint(args: str, ctx: ModeContext) -> None:
     ctx.renderer.console.print(
         "\n[dim italic]尝试和酒馆里的人聊聊天，也许能发现什么线索...[/]\n"
     )
 
 
-async def cmd_undo(args: str, ctx: CommandContext) -> None:
+async def cmd_undo(args: str, ctx: ModeContext) -> None:
     result = ctx.state_manager.undo()
     if result is None:
         ctx.renderer.console.print("\n[red]没有可以回退的步骤。[/]\n")
@@ -57,11 +62,11 @@ async def cmd_undo(args: str, ctx: CommandContext) -> None:
     ctx.renderer.render_result(look_result)
 
 
-async def cmd_help(args: str, ctx: CommandContext) -> None:
+async def cmd_help(args: str, ctx: ModeContext) -> None:
     ctx.renderer.render_help()
 
 
-async def cmd_save(args: str, ctx: CommandContext) -> None:
+async def cmd_save(args: str, ctx: ModeContext) -> None:
     slot = args.strip() if args.strip() else "auto"
     try:
         new_state = ctx.memory.sync_to_state(ctx.state_manager.state)
@@ -71,12 +76,12 @@ async def cmd_save(args: str, ctx: CommandContext) -> None:
         ctx.renderer.console.print(f"\n[red]存档失败：{e}[/]\n")
 
 
-async def cmd_saves(args: str, ctx: CommandContext) -> None:
+async def cmd_saves(args: str, ctx: ModeContext) -> None:
     saves = ctx.persistence.list_saves()
     ctx.renderer.render_saves_list(saves)
 
 
-async def cmd_load(args: str, ctx: CommandContext) -> None:
+async def cmd_load(args: str, ctx: ModeContext) -> None:
     if ctx.dialogue_manager and ctx.dialogue_manager.is_active:
         ctx.renderer.console.print("\n[red]请先结束当前对话再加载存档。[/]\n")
         return
@@ -90,7 +95,7 @@ async def cmd_load(args: str, ctx: CommandContext) -> None:
         ctx.renderer.console.print(f"\n[red]{e}[/]\n")
 
 
-async def cmd_quit(args: str, ctx: CommandContext) -> None:
+async def cmd_quit(args: str, ctx: ModeContext) -> None:
     raise SystemExit(0)
 
 

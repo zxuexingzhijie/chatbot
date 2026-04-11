@@ -4,20 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from tavern.world.state import ReactiveStateManager, WorldState
-
-
-@dataclass
-class CommandContext:
-    state_manager: ReactiveStateManager
-    renderer: Any
-    narrator: Any
-    memory: Any
-    persistence: Any
-    story_engine: Any
-    dialogue_manager: Any
-    logger: Any
-    action_registry: Any = None
+    from tavern.engine.fsm import ModeContext
 
 
 @dataclass(frozen=True)
@@ -28,7 +15,7 @@ class GameCommand:
     is_hidden: bool = False
     available_in: tuple = ()
     is_available: Callable[[Any], bool] = lambda _: True
-    execute: Callable[[str, CommandContext], Awaitable[None]] = field(default=None)
+    execute: Callable[[str, ModeContext], Awaitable[None]] = field(default=None)
 
 
 class CommandRegistry:
@@ -57,7 +44,7 @@ class CommandRegistry:
         return [c.name for c in self.get_available(mode, state)]
 
     async def handle_command(
-        self, raw: str, mode: Any, ctx: CommandContext
+        self, raw: str, mode: Any, ctx: ModeContext
     ) -> bool:
         parts = raw.split(maxsplit=1)
         cmd_name = parts[0].lower()
