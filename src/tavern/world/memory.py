@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -32,6 +33,31 @@ class Relationship:
     src: str
     tgt: str
     value: int  # clamped to [-100, 100]
+
+
+class MemoryType(Enum):
+    LORE = "lore"
+    QUEST = "quest"
+    RELATIONSHIP = "relationship"
+    DISCOVERY = "discovery"
+
+
+@dataclass(frozen=True)
+class MemoryEntry:
+    id: str
+    memory_type: MemoryType
+    content: str
+    importance: int
+    created_turn: int
+    last_relevant_turn: int
+
+
+@dataclass(frozen=True)
+class MemoryBudget:
+    lore: int = 200
+    quest: int = 300
+    relationship: int = 150
+    discovery: int = 100
 
 
 class EventTimeline:
