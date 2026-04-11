@@ -73,6 +73,7 @@ class ModeContext:
     intent_parser: Any
     logger: Any
     game_logger: Any = None
+    keybinding_bridge: Any = None
 
 
 class ModeHandler(Protocol):

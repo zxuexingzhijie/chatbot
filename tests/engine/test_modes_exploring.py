@@ -162,14 +162,11 @@ class TestExploringModeHandler:
         handler = ExploringModeHandler()
         bindings = handler.get_keybindings()
         assert isinstance(bindings, list)
-        assert len(bindings) > 0
+        assert len(bindings) == 0
 
     def test_keybindings_have_required_fields(self):
         handler = ExploringModeHandler()
-        for binding in handler.get_keybindings():
-            assert binding.key
-            assert binding.action
-            assert binding.description
+        assert handler.get_keybindings() == []
 
 
 class TestExploringFreeText:

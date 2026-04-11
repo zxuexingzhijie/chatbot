@@ -64,27 +64,14 @@ class TestDialogueModeHandler:
         handler = DialogueModeHandler(dialogue_manager=MagicMock())
         assert handler.mode == GameMode.DIALOGUE
 
-    def test_keybindings_include_hint_selection(self):
+    def test_keybindings_returns_empty_list(self):
         handler = DialogueModeHandler(dialogue_manager=MagicMock())
         bindings = handler.get_keybindings()
-        hint_keys = [b for b in bindings if b.action.startswith("select_hint")]
-        assert len(hint_keys) == 3
-        for b in hint_keys:
-            assert b.allow_in_text is True
-
-    def test_keybindings_include_escape(self):
-        handler = DialogueModeHandler(dialogue_manager=MagicMock())
-        bindings = handler.get_keybindings()
-        esc = [b for b in bindings if b.key == "escape"]
-        assert len(esc) == 1
-        assert esc[0].allow_in_text is True
+        assert bindings == []
 
     def test_keybindings_have_required_fields(self):
         handler = DialogueModeHandler(dialogue_manager=MagicMock())
-        for binding in handler.get_keybindings():
-            assert binding.key
-            assert binding.action
-            assert binding.description
+        assert handler.get_keybindings() == []
 
     def test_get_prompt_config(self):
         handler = DialogueModeHandler(dialogue_manager=MagicMock())

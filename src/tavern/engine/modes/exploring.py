@@ -112,13 +112,4 @@ class ExploringModeHandler:
         return PromptConfig(prompt_text="> ", show_status_bar=True)
 
     def get_keybindings(self) -> list[Keybinding]:
-        return [
-            Keybinding("n", "move_north", "向北移动"),
-            Keybinding("s", "move_south", "向南移动"),
-            Keybinding("e", "move_east", "向东移动"),
-            Keybinding("w", "move_west", "向西移动"),
-            Keybinding("l", "look_around", "查看四周"),
-            Keybinding("i", "open_inventory", "打开背包"),
-            Keybinding("t", "talk_nearest", "与最近的NPC交谈"),
-            Keybinding("?", "show_help", "显示帮助"),
-        ]
+        return []

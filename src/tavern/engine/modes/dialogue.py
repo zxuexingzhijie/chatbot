@@ -91,9 +91,4 @@ class DialogueModeHandler:
         return PromptConfig(prompt_text="对话> ", show_status_bar=False)
 
     def get_keybindings(self) -> list[Keybinding]:
-        return [
-            Keybinding("1", "select_hint_1", "选择提示1", allow_in_text=True),
-            Keybinding("2", "select_hint_2", "选择提示2", allow_in_text=True),
-            Keybinding("3", "select_hint_3", "选择提示3", allow_in_text=True),
-            Keybinding("escape", "end_dialogue", "结束对话", allow_in_text=True),
-        ]
+        return []

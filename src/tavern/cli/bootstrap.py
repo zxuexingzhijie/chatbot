@@ -8,6 +8,8 @@ from tavern.engine.command_defs import register_all_commands
 from tavern.engine.commands import CommandRegistry
 from tavern.engine.effects import EFFECT_EXECUTORS
 from tavern.engine.fsm import GameLoop, GameMode, ModeContext
+from tavern.engine.keybinding_bridge import KeybindingBridge
+from tavern.engine.keybindings import DEFAULT_BINDINGS, KeybindingResolver
 from tavern.engine.modes.dialogue import DialogueModeHandler
 from tavern.engine.modes.exploring import ExploringModeHandler
 from tavern.narrator.cached_builder import CachedPromptBuilder
@@ -32,6 +34,9 @@ def bootstrap(
 
     action_registry = ActionRegistry(build_all_actions())
 
+    keybinding_resolver = KeybindingResolver(DEFAULT_BINDINGS)
+    keybinding_bridge = KeybindingBridge(keybinding_resolver, blocks=DEFAULT_BINDINGS)
+
     scene_cache = SceneContextCache()
     cached_builder = CachedPromptBuilder(
         content_loader=content_loader,
@@ -53,6 +58,7 @@ def bootstrap(
         intent_parser=intent_parser,
         logger=logger,
         game_logger=game_logger,
+        keybinding_bridge=keybinding_bridge,
     )
 
     handlers = {
