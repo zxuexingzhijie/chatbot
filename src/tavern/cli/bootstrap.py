@@ -44,7 +44,7 @@ def bootstrap(
 
     handlers = {
         GameMode.EXPLORING: ExploringModeHandler(),
-        GameMode.DIALOGUE: DialogueModeHandler(),
+        GameMode.DIALOGUE: DialogueModeHandler(dialogue_manager=dialogue_manager),
     }
 
     return GameLoop(
