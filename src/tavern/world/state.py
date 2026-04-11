@@ -126,13 +126,21 @@ class WorldState(BaseModel):
 
         new_endings_reached = self.endings_reached + diff.new_endings
 
+        new_relationships = dict(self.relationships_snapshot)
+        for change in diff.relationship_changes:
+            src = change.get("src", "")
+            tgt = change.get("tgt", "")
+            delta = change.get("delta", 0)
+            key = f"{src}->{tgt}"
+            new_relationships[key] = new_relationships.get(key, 0) + delta
+
         return WorldState(
             turn=self.turn + diff.turn_increment,
             player_id=self.player_id,
             locations=new_locations,
             characters=new_characters,
             items=new_items,
-            relationships_snapshot=self.relationships_snapshot,
+            relationships_snapshot=new_relationships,
             quests=new_quests,
             story_active_since=new_story_active_since,
             timeline=new_timeline,

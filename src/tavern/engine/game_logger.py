@@ -75,13 +75,14 @@ class GameLogger:
         with open(self._path, "rb") as f:
             f.seek(0, 2)
             pos = f.tell()
+            raw_buf = b""
             tail_lines: list[str] = []
             while pos > 0 and len(tail_lines) < remaining + 1:
                 read_size = min(chunk_size, pos)
                 pos -= read_size
                 f.seek(pos)
-                chunk = f.read(read_size).decode("utf-8")
-                tail_lines = chunk.splitlines() + tail_lines
+                raw_buf = f.read(read_size) + raw_buf
+                tail_lines = raw_buf.decode("utf-8", errors="replace").splitlines()
         disk_entries: list[GameLogEntry] = []
         for line in tail_lines:
             line = line.strip()

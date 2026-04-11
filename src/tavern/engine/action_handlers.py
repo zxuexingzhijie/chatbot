@@ -74,8 +74,11 @@ def build_all_actions() -> list[ActionDef]:
             description="使用",
             valid_targets=lambda s: list(
                 s.characters[s.player_id].inventory
+            ) + list(s.current_location.items),
+            is_available=lambda s: (
+                len(s.characters[s.player_id].inventory) > 0
+                or len(s.current_location.items) > 0
             ),
-            is_available=lambda s: len(s.characters[s.player_id].inventory) > 0,
             handler=_handle_use,
             requires_target=True,
         ),

@@ -74,6 +74,7 @@ class StoryNode:
     effects: StoryEffects
     narrator_hint: str | None
     fail_forward: FailForward | None
+    choice_hints: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -123,10 +124,13 @@ def _build_result(node: StoryNode, state: "WorldState") -> StoryResult:
         )
         for e in node.effects.new_events
     )
-    quest_updates = {
-        **node.effects.quest_updates,
-        node.id: {"_story_status": "completed"},
-    }
+    quest_updates: dict[str, dict] = {}
+    for qid, qval in node.effects.quest_updates.items():
+        entry = dict(qval)
+        if entry.get("status") == "active":
+            entry["activated_at"] = state.turn
+        quest_updates[qid] = entry
+    quest_updates[node.id] = {"_story_status": "completed"}
 
     updated_characters: dict[str, dict] = {}
     updated_locations: dict[str, dict] = {}
@@ -256,6 +260,41 @@ class StoryEngine:
                 results.append(_build_hint_result(node, state))
         return results
 
+    def get_pending_hints(
+        self,
+        state: "WorldState",
+        timeline: "EventTimeline",
+        relationships: "RelationshipGraph",
+    ) -> list[str]:
+        active = self.get_active_nodes(state)
+        hints: list[str] = []
+        for nid in active:
+            node = self._nodes[nid]
+            if not node.choice_hints:
+                continue
+            total = len(node.conditions)
+            if total < 2:
+                continue
+            met = sum(
+                1
+                for cond in node.conditions
+                if _safe_eval(cond, state, timeline, relationships)
+            )
+            if met == total - 1:
+                hints.extend(node.choice_hints)
+        return hints
+
+
+def _safe_eval(cond, state, timeline, relationships) -> bool:
+    from tavern.engine.story_conditions import CONDITION_REGISTRY
+    evaluator = CONDITION_REGISTRY.get(cond.type)
+    if evaluator is None:
+        return False
+    try:
+        return evaluator(cond, state, timeline, relationships)
+    except Exception:
+        return False
+
 
 # ---------------------------------------------------------------------------
 # YAML loader
@@ -311,6 +350,7 @@ def load_story_nodes(path: "Path") -> dict[str, StoryNode]:
                 effects=effects,
                 narrator_hint=entry.get("narrator_hint"),
                 fail_forward=fail_forward,
+                choice_hints=tuple(entry.get("choice_hints") or []),
             )
             nodes[node.id] = node
         except Exception as exc:

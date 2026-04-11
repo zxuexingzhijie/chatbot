@@ -90,6 +90,47 @@ def eval_turn_count(cond: ActivationCondition, state: "WorldState", timeline, re
     return _compare(state.turn, cond.operator, cond.value)
 
 
+@register_condition("visited_locations_count")
+def eval_visited_locations_count(cond: ActivationCondition, state: "WorldState", timeline, relationships) -> bool:
+    if cond.operator is None or cond.value is None:
+        return False
+    visited = set()
+    for event in state.timeline:
+        if event.type == "move" or event.type == "story":
+            pass
+    visited = {
+        e.description.split("->")[-1].strip()
+        for e in state.timeline if "location" in e.type
+    }
+    player = state.characters.get(state.player_id)
+    if player:
+        visited.add(player.location_id)
+    for e in state.timeline:
+        if e.type == "move" and hasattr(e, "actor") and e.actor == state.player_id:
+            visited.add(e.id)
+    count = len(visited) if visited else 1
+    return _compare(count, cond.operator, cond.value)
+
+
+@register_condition("quest_none_active")
+def eval_quest_none_active(cond: ActivationCondition, state: "WorldState", timeline, relationships) -> bool:
+    return not any(q.get("status") == "active" for q in state.quests.values())
+
+
+@register_condition("all_npc_trust_below")
+def eval_all_npc_trust_below(cond: ActivationCondition, state: "WorldState", timeline, relationships) -> bool:
+    if cond.value is None:
+        return False
+    threshold = cond.value
+    for char_id, char in state.characters.items():
+        if char_id == state.player_id:
+            continue
+        trust = int(char.stats.get("trust", 0))
+        if trust >= threshold:
+            return False
+    return True
+
+
 import re as _re
 
 _REL_PATTERN = _re.compile(

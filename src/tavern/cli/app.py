@@ -74,6 +74,7 @@ class GameApp:
         })
         intent_adapter = LLMRegistry.create(_build_llm_config(intent_raw))
         narrative_adapter = LLMRegistry.create(_build_llm_config(narrative_raw))
+        self._adapters = [intent_adapter, narrative_adapter]
         llm_service = LLMService(
             intent_adapter=intent_adapter,
             narrative_adapter=narrative_adapter,
@@ -283,3 +284,6 @@ class GameApp:
             await self._game_loop.run()
         finally:
             self._game_logger.close()
+            for adapter in self._adapters:
+                if hasattr(adapter, "aclose"):
+                    await adapter.aclose()

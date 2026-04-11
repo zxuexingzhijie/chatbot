@@ -265,7 +265,12 @@ class Renderer:
 
     @asynccontextmanager
     async def spinner(self, message: str = "思考中..."):
-        with self.console.status(f"[dim]{message}[/]", spinner="dots"):
+        from tavern.content.quotes import random_quote
+        quote = random_quote()
+        with self.console.status(
+            f"[dim]{message}[/]\n  [dim italic]{quote}[/]",
+            spinner="dots",
+        ):
             yield
 
     def render_status_bar(self, state: WorldState) -> None:
@@ -293,35 +298,64 @@ class Renderer:
 
         self.console.print(f"\n{prefix}{result.message}\n", style=style)
 
-    async def render_stream(self, stream, *, atmosphere: str = "neutral") -> None:
+    async def render_error(self, message: str) -> None:
+        self.console.print(f"\n[bold red]✗[/] {message}\n", style="red")
+
+    def start_thinking_status(self) -> Any:
+        from tavern.content.quotes import random_quote
+        quote = random_quote()
+        status = self.console.status(
+            f"[dim]思考中...[/]\n  [dim italic]{quote}[/]", spinner="dots",
+        )
+        status.start()
+        return status
+
+    async def render_stream(self, stream, *, atmosphere: str = "neutral", pending_status=None) -> None:
         from rich.live import Live
         from rich.markdown import Markdown
         from rich.styled import Styled
 
         style = _ATMOSPHERE_STYLES.get(atmosphere, _ATMOSPHERE_STYLES["neutral"])
         self.console.print()
+        if pending_status is not None:
+            status = pending_status
+        else:
+            from tavern.content.quotes import random_quote
+            quote = random_quote()
+            status = self.console.status(
+                f"[dim]思考中...[/]\n  [dim italic]{quote}[/]", spinner="dots",
+            )
+            status.start()
         buffer = ""
+        live = None
         try:
-            with Live(
-                Styled(Markdown(""), style=style),
-                console=self.console,
-                refresh_per_second=_LIVE_REFRESH_RATE,
-                vertical_overflow="visible",
-            ) as live:
-                async for chunk in stream:
-                    buffer += chunk
-                    live.update(Styled(Markdown(buffer), style=style))
+            async for chunk in stream:
+                if live is None:
+                    status.stop()
+                    live = Live(
+                        Styled(Markdown(""), style=style),
+                        console=self.console,
+                        refresh_per_second=_LIVE_REFRESH_RATE,
+                    )
+                    live.start()
+                buffer += chunk
+                live.update(Styled(Markdown(buffer), style=style))
 
-                    if self._typewriter_effect:
-                        stripped = chunk.rstrip()
-                        if stripped:
-                            last_char = stripped[-1]
-                            if last_char in _TYPEWRITER_PAUSES:
-                                await asyncio.sleep(_TYPEWRITER_PAUSES[last_char])
-                        if buffer.endswith("\n\n"):
-                            await asyncio.sleep(_TYPEWRITER_PAUSES["\n\n"])
+                if self._typewriter_effect:
+                    stripped = chunk.rstrip()
+                    if stripped:
+                        last_char = stripped[-1]
+                        if last_char in _TYPEWRITER_PAUSES:
+                            await asyncio.sleep(_TYPEWRITER_PAUSES[last_char])
+                    if buffer.endswith("\n\n"):
+                        await asyncio.sleep(_TYPEWRITER_PAUSES["\n\n"])
         except Exception as exc:
             logger.warning("render_stream interrupted: %s", exc)
+        finally:
+            if live is not None:
+                live.stop()
+            else:
+                status.stop()
 
         self.console.print()
 
@@ -414,6 +448,9 @@ class Renderer:
         self.console.print()
         self.console.print(Markdown(location.description))
         self.console.print()
+        self.render_onboarding_hint(
+            "输入你想做的任何事，比如'看看四周'或'和酒保说话'"
+        )
 
     def render_help(self) -> None:
         self.console.print("\n[bold]系统命令:[/]")
@@ -628,6 +665,39 @@ class Renderer:
                 border_style="dim",
             )
         )
+
+    def render_quest_notification(
+        self, quest_id: str, status: str, description: str = "",
+    ) -> None:
+        _QUEST_ICONS: dict[str, tuple[str, str]] = {
+            "active": ("📜 新任务", "bright_cyan"),
+            "discovered": ("🔍 线索", "cyan"),
+            "completed": ("✅ 任务完成", "green"),
+            "abandoned": ("❌ 任务失败", "red"),
+            "reported": ("📨 任务更新", "yellow"),
+            "amulet_found": ("📨 任务更新", "yellow"),
+            "found_box": ("📨 任务更新", "yellow"),
+        }
+        icon, color = _QUEST_ICONS.get(status, ("📨 任务更新", "yellow"))
+        body = f"[bold]{quest_id}[/]"
+        if description:
+            body += f"\n{description}"
+        self.console.print(
+            Panel(body, title=icon, border_style=color, padding=(0, 2))
+        )
+
+    def render_quest_expiry_warning(
+        self, quest_id: str, turns_left: int, description: str = "",
+    ) -> None:
+        body = f"[bold]{quest_id}[/] — 还剩 {turns_left} 回合"
+        if description:
+            body += f"\n{description}"
+        self.console.print(
+            Panel(body, title="⚠ 任务即将过期", border_style="bright_yellow", padding=(0, 2))
+        )
+
+    def render_onboarding_hint(self, hint: str) -> None:
+        self.console.print(f"\n  [dim italic]💡 {hint}[/]\n")
 
     def render_ending(self, ending_id: str) -> None:
         ending_titles = {

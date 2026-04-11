@@ -24,6 +24,9 @@ nodes:
           description: "玩家首次进入地下室，发现异常划痕"
 
     narrator_hint: "氛围阴森，引导玩家注意地面划痕和旧木桶，暗示有秘密。"
+    choice_hints:
+      - "仔细检查地面的划痕"
+      - "查看角落的旧木桶"
 
   - id: cellar_secret_revealed
     act: act1
@@ -89,6 +92,9 @@ nodes:
           to: backyard
 
     narrator_hint: "艾琳恳请帮忙，语气诚恳焦急。她提到护身符可能掉在了后院马车附近。"
+    choice_hints:
+      - "答应帮艾琳寻找护身符"
+      - "去后院马车附近看看"
 
   - id: amulet_found
     act: act1
@@ -324,6 +330,9 @@ nodes:
           trust: -50
 
     narrator_hint: "玩家做出了背叛的选择。酒保接过信件时眼中闪过贪婪的光芒。"
+    choice_hints:
+      - "把信件交给酒保格里姆"
+      - "保留信件，不要背叛神秘旅客"
 
   # ── Multi-Ending: Good Ending ───────────────────────────────────────────
 
@@ -404,9 +413,12 @@ nodes:
     trigger:
       mode: passive
       conditions:
-        - type: turn_count
+        - type: visited_locations_count
           operator: ">="
-          value: 40
+          value: 3
+        - type: quest_none_active
+        - type: all_npc_trust_below
+          value: 15
         - type: event
           event_id: ending_good_reached
           check: not_exists

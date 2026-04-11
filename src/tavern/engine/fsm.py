@@ -119,13 +119,24 @@ class GameLoop:
                 extra_bindings = None
                 if bridge is not None:
                     extra_bindings = bridge.build_ptk_bindings(self._current_mode)
-                raw = await self._context.renderer.get_input(
+                hints = self._collect_hints(state)
+                if hints and hasattr(self._context.renderer, "get_input_with_card_hints"):
+                    raw = await self._context.renderer.get_input_with_card_hints(hints)
+                else:
+                    raw = await self._context.renderer.get_input(
                     config=handler.get_prompt_config(state),
                     extra_bindings=extra_bindings,
                 )
                 result = await handler.handle_input(raw, state, self._context)
                 for effect in result.side_effects:
                     await self._execute_effect(effect)
+
+                new_state = self._context.state_manager.state
+                new_endings = set(new_state.endings_reached) - set(state.endings_reached)
+                if new_endings:
+                    await self._play_ending(sorted(new_endings)[0])
+                    break
+
                 if result.next_mode is not None:
                     self._current_mode = result.next_mode
             except (KeyboardInterrupt, SystemExit):
@@ -142,6 +153,36 @@ class GameLoop:
         await executor(effect.payload, self._context)
 
     def stop(self) -> None:
+        self._running = False
+
+    def _collect_hints(self, state: "WorldState") -> list[str]:
+        se = self._context.story_engine
+        if se is None or not hasattr(se, "get_pending_hints"):
+            return []
+        memory = self._context.memory
+        timeline = memory.timeline if hasattr(memory, "timeline") else ()
+        relationships = memory.relationship_graph if hasattr(memory, "relationship_graph") else {}
+        return se.get_pending_hints(state, timeline, relationships)
+
+    async def _play_ending(self, ending_id: str) -> None:
+        state = self._context.state_manager.state
+        narrator = getattr(self._context, "narrator", None)
+        renderer = self._context.renderer
+        if narrator is not None:
+            memory_ctx = None
+            if hasattr(self._context.memory, "build_context"):
+                memory_ctx = self._context.memory.build_context(
+                    actor=state.player_id, state=state,
+                )
+            hint = ""
+            if hasattr(self._context, "story_engine") and self._context.story_engine:
+                for nid, node in self._context.story_engine._nodes.items():
+                    if getattr(node.effects, "trigger_ending", None) == ending_id:
+                        hint = node.narrator_hint or ""
+                        break
+            stream = narrator.stream_ending_narrative(ending_id, hint, state, memory_ctx)
+            await renderer.render_stream(stream)
+        renderer.render_ending(ending_id)
         self._running = False
 
     def reset(self, new_state: WorldState) -> None:

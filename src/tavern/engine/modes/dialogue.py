@@ -56,13 +56,13 @@ class DialogueModeHandler:
 
         memory_ctx = context.memory.build_context(actor=active_ctx.npc_id, state=state)
         new_ctx, response = await self._dm.respond(active_ctx, stripped, state, memory_ctx)
-        await context.renderer.render_dialogue_with_typewriter(active_ctx.npc_name, response)
+        await context.renderer.render_dialogue_with_typewriter(new_ctx.npc_name, response)
 
         effects: list[SideEffect] = []
         if response.trust_delta != 0:
             effects.append(SideEffect(
                 kind=EffectKind.APPLY_TRUST,
-                payload={"npc_id": active_ctx.npc_id, "delta": response.trust_delta},
+                payload={"npc_id": new_ctx.npc_id, "delta": response.trust_delta},
             ))
 
         if response.wants_to_end:
@@ -70,7 +70,7 @@ class DialogueModeHandler:
             context.renderer.render_dialogue_end(summary)
             effects.append(SideEffect(
                 kind=EffectKind.END_DIALOGUE,
-                payload={"npc_id": active_ctx.npc_id},
+                payload={"npc_id": new_ctx.npc_id},
             ))
             return TransitionResult(next_mode=GameMode.EXPLORING, side_effects=tuple(effects))
 

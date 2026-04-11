@@ -49,6 +49,7 @@ async def cmd_undo(args: str, ctx: ModeContext) -> None:
     if result is None:
         ctx.renderer.console.print("\n[red]没有可以回退的步骤。[/]\n")
         return
+    ctx.memory.rebuild(result)
     ctx.renderer.console.print("\n[dim]已回退上一步。[/]\n")
     request = ActionRequest(action=ActionType.LOOK)
     if ctx.action_registry is not None:

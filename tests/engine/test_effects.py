@@ -75,7 +75,9 @@ class TestExecStartDialogue:
         with pytest.raises(ValueError, match="NPC not found"):
             await exec_start_dialogue({"npc_id": "grim"}, ctx)
 
-    async def test_calls_set_active_npc(self):
+    async def test_calls_dialogue_manager_start(self):
+        from unittest.mock import AsyncMock
+        from tavern.dialogue.context import DialogueContext, DialogueResponse
         npc = Character(
             id="grim",
             name="Grim",
@@ -83,11 +85,23 @@ class TestExecStartDialogue:
             location_id="tavern",
             stats={"trust": 10},
         )
+        dialogue_ctx = DialogueContext(
+            npc_id="grim", npc_name="Grim", npc_traits=(), trust=10,
+            tone="neutral", messages=(), location_id="tavern", turn_entered=0,
+        )
+        response = DialogueResponse(
+            text="你好", trust_delta=0, mood="neutral", wants_to_end=False,
+        )
         dm = MagicMock()
-        dm.set_active_npc = MagicMock()
+        dm.start = AsyncMock(return_value=(dialogue_ctx, response))
+        renderer = MagicMock()
+        renderer.render_dialogue_streaming = AsyncMock()
         ctx = _make_ctx(characters={"grim": npc}, dialogue_manager=dm)
+        ctx.renderer = renderer
         await exec_start_dialogue({"npc_id": "grim"}, ctx)
-        dm.set_active_npc.assert_called_once_with("grim")
+        dm.start.assert_called_once()
+        renderer.render_dialogue_start.assert_called_once_with(dialogue_ctx, response)
+        renderer.render_dialogue_streaming.assert_called_once_with("你好")
 
 
 class TestExecEndDialogue:

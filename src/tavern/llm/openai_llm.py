@@ -4,13 +4,13 @@ import os
 from typing import AsyncIterator, TypeVar
 
 try:
-    from openai import AsyncOpenAI
+    from openai import AsyncOpenAI, APIConnectionError, RateLimitError, APITimeoutError
 except ImportError:
     AsyncOpenAI = None
 from pydantic import BaseModel
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from tavern.llm.adapter import LLMConfig
+from tavern.llm.adapter import LLMConfig, LLMError
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -35,6 +35,9 @@ class OpenAIAdapter:
         response_format: type[T] | None = None,
     ) -> T | str:
         retryer = retry(
+            retry=retry_if_exception_type(
+                (APIConnectionError, RateLimitError, APITimeoutError),
+            ),
             stop=stop_after_attempt(self._config.max_retries),
             wait=wait_exponential(multiplier=1, min=1, max=10),
             reraise=True,
@@ -56,17 +59,23 @@ class OpenAIAdapter:
 
         if response_format is not None:
             kwargs["response_format"] = {"type": "json_object"}
+            messages = list(messages)
             if messages and messages[0]["role"] == "system":
-                messages = list(messages)
                 messages[0] = {
                     **messages[0],
                     "content": messages[0]["content"]
                     + "\n\nRespond with valid JSON only.",
                 }
+            else:
+                messages.insert(0, {"role": "system", "content": "Respond with valid JSON only."})
             kwargs["messages"] = messages
 
         response = await self._client.chat.completions.create(**kwargs)
+        if not response.choices:
+            raise LLMError("OpenAI returned empty response (no choices)")
         content = response.choices[0].message.content
+        if content is None:
+            raise LLMError("OpenAI returned None content (possible function call or content filter)")
 
         if response_format is not None:
             return response_format.model_validate_json(content)

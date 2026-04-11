@@ -642,3 +642,21 @@ def test_load_tavern_story_yaml_includes_endings():
     assert nodes["ending_bad"].effects.trigger_ending == "bad_ending"
     assert nodes["ending_neutral"].effects.trigger_ending == "neutral_ending"
     assert nodes["betray_guest"].effects.trigger_ending is None
+
+
+def test_build_result_stamps_activated_at_for_active_quest():
+    node = _make_node("n1", quest_updates={"q1": {"status": "active"}})
+    engine = _make_engine([node])
+    state = _make_state(turn=7)
+    results = engine.check(state, "passive", MagicMock(), MagicMock())
+    assert len(results) == 1
+    assert results[0].diff.quest_updates["q1"]["activated_at"] == 7
+
+
+def test_build_result_no_activated_at_for_non_active_quest():
+    node = _make_node("n1", quest_updates={"q1": {"status": "completed"}})
+    engine = _make_engine([node])
+    state = _make_state(turn=7)
+    results = engine.check(state, "passive", MagicMock(), MagicMock())
+    assert len(results) == 1
+    assert "activated_at" not in results[0].diff.quest_updates["q1"]

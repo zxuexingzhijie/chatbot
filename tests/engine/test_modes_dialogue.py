@@ -123,7 +123,10 @@ class TestDialogueFlow:
         active_ctx = _default_active_ctx()
         dm = _make_dm(active=active_ctx)
         response = DialogueResponse(text="你好！", trust_delta=2, mood="friendly", wants_to_end=False)
-        dm.respond.return_value = (MagicMock(), response)
+        new_ctx = MagicMock()
+        new_ctx.npc_name = "Grim"
+        new_ctx.npc_id = "grim"
+        dm.respond.return_value = (new_ctx, response)
 
         renderer = _make_renderer()
         memory = MagicMock()
@@ -151,7 +154,7 @@ class TestDialogueFlow:
             npc_id="grim", summary_text="一段对话", total_trust_delta=0,
             key_info=(), turns_count=1,
         )
-        dm.respond.return_value = (MagicMock(), response)
+        dm.respond.return_value = (MagicMock(npc_name="Grim", npc_id="grim"), response)
         dm.end.return_value = summary
 
         renderer = _make_renderer()
