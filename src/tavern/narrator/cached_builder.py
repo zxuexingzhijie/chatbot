@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, TYPE_CHECKING
 
+from tavern.content.conditions import evaluate_content_condition
 from tavern.engine.seeded_rng import generate_ambience
 from tavern.narrator.scene_cache import SceneContext, SceneContextCache
 
@@ -21,6 +22,11 @@ class CachedPromptBuilder:
         self._cache = cache
         self._state_manager = state_manager
 
+    def resolve_content(self, content_id: str) -> str | None:
+        if self._content is None:
+            return None
+        return self._content.resolve(content_id)
+
     def build_scene_context(self, state: WorldState) -> SceneContext:
         loc_id = state.player_location
         version = self._state_manager.version
@@ -33,7 +39,12 @@ class CachedPromptBuilder:
 
         description = None
         if self._content is not None:
-            description = self._content.resolve(loc_id)
+            description = self._content.resolve(
+                loc_id,
+                condition_evaluator=lambda when, **kw: evaluate_content_condition(
+                    when, turn=state.turn,
+                ),
+            )
         if description is None:
             description = location.description
 
